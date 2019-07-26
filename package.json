@@ -23,6 +23,7 @@
     "@types/node": "^12.6.8",
     "@types/yargs": "^13.0.0",
     "jest": "^24.8.0",
+    "readme-file-gen": "0.0.1",
     "ts-jest": "^24.0.2",
     "ts-node": "^8.3.0",
     "typescript": "^3.5.3"
