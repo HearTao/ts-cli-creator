@@ -1,4 +1,4 @@
-import { SourceFile, ts, JSDoc, JSDocTag, PropertySignature, InterfaceDeclaration, JSDocableNode } from 'ts-morph'
+import { ts, JSDoc, JSDocTag, PropertySignature, InterfaceDeclaration, JSDocableNode } from 'ts-morph'
 
 // enum YargsType {
 //   String = 'string',
@@ -7,19 +7,10 @@ import { SourceFile, ts, JSDoc, JSDocTag, PropertySignature, InterfaceDeclaratio
 //   /**@todo Count = 'count'*/ 
 // }
 
-const JSDOCTAG_OPTIONS: string = `@cliOptions`
 
-function filterInterfaceByJSDos(interfaces: InterfaceDeclaration[]): InterfaceDeclaration | undefined {
-  return interfaces.find(decl => {
-    const jsdoc = getLastJSDoc(decl)
-    if(null === jsdoc) return false
-    return Boolean(getTag(jsdoc, tag => JSDOCTAG_OPTIONS === tag.getText().trim()))
-  })
-}
-
-function getTag(jsdoc: JSDoc, predicate: (tag: JSDocTag) => boolean): JSDocTag | undefined {
-  return jsdoc.getTags().find(tag => predicate(tag))
-}
+// function getTag(jsdoc: JSDoc, predicate: (tag: JSDocTag) => boolean): JSDocTag | undefined {
+//   return jsdoc.getTags().find(tag => predicate(tag))
+// }
 
 function getLastJSDoc(node: JSDocableNode): JSDoc | null{
   const jsdocs = node.getJsDocs()
@@ -28,32 +19,14 @@ function getLastJSDoc(node: JSDocableNode): JSDoc | null{
   return jsdocs[len - 1]
 }
 
-export default function convert(sourceFile: SourceFile): ts.Node | null {
-  const interfaces = sourceFile.getInterfaces()
-  const optionsInterface = filterInterfaceByJSDos(interfaces)
-  if(undefined === optionsInterface) return null
-
-  const props = transformInterfaceProps(optionsInterface.getProperties())
+export default function convert(interfaceDecl: InterfaceDeclaration): ts.CallExpression[] {
+  const props = transformInterfaceProps(interfaceDecl.getProperties())
   const calls = props.map(([ name, props ]) => {
     const args = render(name, props)
     return renderCallable(args as any)
   })
 
-  return renderCallableChain(ts.createIdentifier(`yargs`), calls)
-}
-
-function renderCallableChain(iden: ts.Identifier, calls: ts.CallExpression[]): ts.Node {
-  return calls.reverse().reduce((acc: any, call: any) => {
-    const curr = acc(call)
-    return (next: any) => ts.createCall(
-      ts.createPropertyAccess(
-        next,
-        curr.expression as any
-      ),
-      undefined,
-      curr.arguments
-    )
-  }, (a: any) => a)(iden)
+  return calls
 }
 
 function renderCallable(args: ts.Expression[]): ts.CallExpression {

@@ -1,6 +1,6 @@
 import { Project, ts } from 'ts-morph'
 // import transform, { convertToYargsOption } from './transform-interface-to-yargs-option'
-import convert from './transform-interface-to-yargs-option'
+import convert from './transform-option'
 
 test(`transformInterfaceToYargsOption()`, () => {
   const code: string = `\
@@ -23,10 +23,10 @@ interface Options {
     skipFileDependencyResolution: true
   })
   const sourceFile = project.createSourceFile(`tmp.ts`, code)
-  const result = convert(sourceFile)
+  const result = convert(sourceFile.getInterfaces()[0])
   console.log(code, `\n\n`)
   if(null === result) return
-  const ret = ts.createPrinter().printNode(ts.EmitHint.Unspecified, result, sourceFile as any)
+  const ret = ts.createPrinter().printList(ts.ListFormat.MultiLine, result as any, sourceFile as any)
   console.log(ret)
 })
 
