@@ -1,0 +1,78 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`convert() types Array<boolean> 1`] = `
+"option(\\"foo\\", {
+    type: \\"boolean\\",
+    array: true
+})
+"
+`;
+
+exports[`convert() types Array<number> 1`] = `
+"option(\\"foo\\", {
+    type: \\"number\\",
+    array: true
+})
+"
+`;
+
+exports[`convert() types Array<string> 1`] = `
+"option(\\"foo\\", {
+    type: \\"string\\",
+    array: true
+})
+"
+`;
+
+exports[`convert() types boolean 1`] = `
+"option(\\"foo\\", {
+    type: \\"boolean\\"
+})
+"
+`;
+
+exports[`convert() types boolean[] 1`] = `
+"option(\\"foo\\", {
+    type: \\"boolean\\",
+    array: true
+})
+"
+`;
+
+exports[`convert() types enum 1`] = `
+"option(\\"foo\\", {
+    type: \\"string\\",
+    choices: [E.A, E.B]
+})
+"
+`;
+
+exports[`convert() types number 1`] = `
+"option(\\"foo\\", {
+    type: \\"number\\"
+})
+"
+`;
+
+exports[`convert() types number[] 1`] = `
+"option(\\"foo\\", {
+    type: \\"number\\",
+    array: true
+})
+"
+`;
+
+exports[`convert() types string 1`] = `
+"option(\\"foo\\", {
+    type: \\"string\\"
+})
+"
+`;
+
+exports[`convert() types string[] 1`] = `
+"option(\\"foo\\", {
+    type: \\"string\\",
+    array: true
+})
+"
+`;
