@@ -1,7 +1,7 @@
 import { ts, printNode } from 'ts-morph'
 import * as prettier from 'prettier'
 
-function generateCallableChain(calls: ts.CallExpression[], expr: ts.Expression): ts.CallExpression {
+export function generateCallableChain(calls: ts.CallExpression[], expr: ts.Expression): ts.CallExpression {
   return calls.reverse().reduce((acc: any, call: any) => {
     return (expr: ts.Expression) => replaceCallableProperty(acc(call), expr)
   }, (a: any) => a)(expr)

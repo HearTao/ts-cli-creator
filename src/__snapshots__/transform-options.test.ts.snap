@@ -47,6 +47,21 @@ exports[`convert() types enum 1`] = `
 "
 `;
 
+exports[`convert() types mulit properties 1`] = `
+"option(\\"foo\\", {
+    type: \\"string\\",
+    choices: [E.A, E.B]
+})
+option(\\"bar\\", {
+    type: \\"string\\"
+})
+option(\\"baz\\", {
+    type: \\"boolean\\",
+    array: true
+})
+"
+`;
+
 exports[`convert() types number 1`] = `
 "option(\\"foo\\", {
     type: \\"number\\"

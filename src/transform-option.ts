@@ -106,7 +106,7 @@ function makeEnumOption(enumDecl: EnumDeclaration): ReturnType<typeof transformY
   }
 }
 
-function makeUnsupportsTypeError(type: string): Error {
+export function makeUnsupportsTypeError(type: string): Error {
   return new Error(`Unsupports type "${type}"`)
 }
 
