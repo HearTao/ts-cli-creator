@@ -34,7 +34,8 @@ const YargsControlledTags: string[] = [
 export const enum YargsSupportedTag {
   Alias = 'alias',
   Default = 'default',
-  DemandOption = 'demandOption'
+  DemandOption = 'demandOption',
+  Required = 'required'
 }
 
 type MappedYargsType = 
@@ -74,9 +75,9 @@ export function parseExprStmt(code: string): ts.Expression {
   const sourceFile: ts.SourceFile = ts.createSourceFile(`tmp.ts`, code, ts.ScriptTarget.ESNext, false, ts.ScriptKind.TS)
   const nodes = sourceFile.statements
   if(0 === nodes.length) throw new Error(`No nodes found`)
-  const node = nodes[0]
+  const node: ts.Statement = nodes[0]
   if(!ts.isExpressionStatement(node)) throw new Error(`Node not ExpressionStatement`)
-  const expr = node.expression
+  const expr: ts.Expression = node.expression
   expr.flags = ts.NodeFlags.Synthesized
   expr.pos = -1
   expr.end = -1
@@ -89,12 +90,27 @@ function isEnumDeclaration(node: Node): node is EnumDeclaration {
 
 function transformYargsType(mappedType: MappedYargsType): { [key: string]: ts.Node } {
   switch(mappedType[0]) {
-    case YargsType.String: return { [YargsControlledTag.Type]: ts.createLiteral(`string`) }
-    case YargsType.Number: return { [YargsControlledTag.Type]: ts.createLiteral(`number`) }
-    case YargsType.Boolean: return { [YargsControlledTag.Type]: ts.createLiteral(`boolean`) }
-    case YargsType.ArrayString: return { [YargsControlledTag.Type]: ts.createLiteral(`string`), [YargsControlledTag.Array]: ts.createLiteral(true) }
-    case YargsType.ArrayNumber: return { [YargsControlledTag.Type]: ts.createLiteral(`number`), [YargsControlledTag.Array]: ts.createLiteral(true) }
-    case YargsType.ArrayBoolean: return { [YargsControlledTag.Type]: ts.createLiteral(`boolean`), [YargsControlledTag.Array]: ts.createLiteral(true) }
+    case YargsType.String: return { 
+      [YargsControlledTag.Type]: ts.createLiteral(`string`) 
+    }
+    case YargsType.Number: return { 
+      [YargsControlledTag.Type]: ts.createLiteral(`number`) 
+    }
+    case YargsType.Boolean: return { 
+      [YargsControlledTag.Type]: ts.createLiteral(`boolean`) 
+    }
+    case YargsType.ArrayString: return { 
+      [YargsControlledTag.Type]: ts.createLiteral(`string`), 
+      [YargsControlledTag.Array]: ts.createLiteral(true) 
+    }
+    case YargsType.ArrayNumber: return { 
+      [YargsControlledTag.Type]: ts.createLiteral(`number`), 
+      [YargsControlledTag.Array]: ts.createLiteral(true) 
+    }
+    case YargsType.ArrayBoolean: return { 
+      [YargsControlledTag.Type]: ts.createLiteral(`boolean`), 
+      [YargsControlledTag.Array]: ts.createLiteral(true) 
+    }
     case YargsType.Enum: return makeEnumOption(mappedType[1])
     default: throw makeUnknownYargsTypeError(mappedType[0])
   }
@@ -131,7 +147,7 @@ function getLastJSDoc(node: JSDocableNode): JSDoc | null{
   return jsdocs[len - 1]
 }
 
-export default function convert(interfaceDecl: InterfaceDeclaration): ts.CallExpression[] {
+export default function transformOption(interfaceDecl: InterfaceDeclaration): ts.CallExpression[] {
   const props = transformInterfaceProps(interfaceDecl.getProperties())
   const calls = props.map(([ name, props ]) => {
     const args = render(name, props)
@@ -212,7 +228,8 @@ function transformJSDocTag(tags: JSDocTag[], _type: Type): { [key: string]: ts.N
         break
       }
 
-      case YargsSupportedTag.DemandOption: {
+      case YargsSupportedTag.DemandOption:
+      case YargsSupportedTag.Required: {
         acc[YargsSupportedTag.DemandOption] = ts.createTrue()
         break
       }

@@ -1,6 +1,6 @@
 import * as vm from 'vm'
 import { Project, ts, SourceFile, printNode } from 'ts-morph'
-import convert, { makeUnsupportsTypeError, parseExprStmt } from './transform-option'
+import transformOption, { makeUnsupportsTypeError, parseExprStmt } from './transform-option'
 import { generateCallableChain } from './generate'
 import * as yargs from 'yargs'
 
@@ -203,10 +203,20 @@ interface Options {
 })
 
 describe(`demandOption option`, () => {
-  test.only(`@demandOption`, () => {
+  test(`@demandOption`, () => {
     const code: string = `\
 interface Options {
   /**@demandOption */
+  foo: string
+}
+`
+    expect(print(code)).toMatchSnapshot()
+  })
+
+  test(`@required`, () => {
+    const code: string = `\
+interface Options {
+  /**@required */
   foo: string
 }
 `
@@ -243,7 +253,7 @@ function run(code: string): [ ts.CallExpression[], SourceFile ] {
     skipFileDependencyResolution: true
   })
   const sourceFile = project.createSourceFile(`tmp.ts`, code)
-  return [ convert(sourceFile.getInterfaces()[0]), sourceFile ]
+  return [ transformOption(sourceFile.getInterfaces()[0]), sourceFile ]
 }
 
 function print(code: string): string {

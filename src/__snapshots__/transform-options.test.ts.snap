@@ -148,6 +148,13 @@ exports[`demandOption option @demandOption 1`] = `
 })"
 `;
 
+exports[`demandOption option @required 1`] = `
+"option(\\"foo\\", {
+    type: \\"string\\",
+    demandOption: true
+})"
+`;
+
 exports[`description option @description 1`] = `
 "option(\\"foo\\", {
     type: \\"string\\",
