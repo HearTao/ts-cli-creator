@@ -1,5 +1,6 @@
 import { ts, JSDoc, JSDocTag, PropertySignature, InterfaceDeclaration, JSDocableNode, Type, Node, EnumDeclaration } from 'ts-morph'
 import { Options as YargsOptions } from 'yargs'
+// import unquote from 'util-extra/string/unquote'
 // import {} from 'ts-creator'
 
 const enum YargsType {
@@ -9,7 +10,7 @@ const enum YargsType {
   ArrayString,
   ArrayNumber,
   ArrayBoolean,
-  /**@todo */Enum
+  Enum
 }
 
 export const enum YargsControlledTag {
@@ -35,11 +36,6 @@ export const enum YargsSupportedTag {
   Default = 'default'
 }
 
-const YargsSupportedTags: string[] = [
-  YargsSupportedTag.Alias,
-  YargsSupportedTag.Default
-]
-
 type MappedYargsType = 
   | [ YargsType.String, null ]
   | [ YargsType.Number, null ]
@@ -50,7 +46,7 @@ type MappedYargsType =
   | [ YargsType.Enum, EnumDeclaration ]
 
 function mapToYargsType(type: Type): MappedYargsType {
-  const text = type.getText()
+  const text: string = type.getText()
   switch(text) {
     case `string`: return [ YargsType.String, null ]
     case `number`: return [ YargsType.Number, null ]
@@ -71,6 +67,19 @@ function mapToYargsType(type: Type): MappedYargsType {
       return [ YargsType.Enum, decl ]
     }
   }
+}
+
+export function parseExprStmt(code: string): ts.Expression {
+  const sourceFile: ts.SourceFile = ts.createSourceFile(`tmp.ts`, code, ts.ScriptTarget.ESNext, false, ts.ScriptKind.TS)
+  const nodes = sourceFile.statements
+  if(0 === nodes.length) throw new Error(`No nodes found`)
+  const node = nodes[0]
+  if(!ts.isExpressionStatement(node)) throw new Error(`Node not ExpressionStatement`)
+  const expr = node.expression
+  expr.flags = ts.NodeFlags.Synthesized
+  expr.pos = -1
+  expr.end = -1
+  return expr
 }
 
 function isEnumDeclaration(node: Node): node is EnumDeclaration {
@@ -113,10 +122,6 @@ export function makeUnsupportsTypeError(type: string): Error {
 function makeUnknownYargsTypeError(yargsType: YargsType): Error {
   return new Error(`Unknown yargsType "${yargsType}"`)
 }
-
-// function getTag(jsdoc: JSDoc, predicate: (tag: JSDocTag) => boolean): JSDocTag | undefined {
-//   return jsdoc.getTags().find(tag => predicate(tag))
-// }
 
 function getLastJSDoc(node: JSDocableNode): JSDoc | null{
   const jsdocs = node.getJsDocs()
@@ -166,53 +171,62 @@ function render(name: string, props: { [key: string]: ts.Node }): [ts.Node, ts.N
   ]
 }
 
-
 function transformInterfaceProps(props: PropertySignature[]): [ string, { [key: string]: ts.Node } ][] {
   return props.map(prop => {
     const name: string = prop.getName()
     
     const type = prop.getType()
     const yargsType = transformYargsType(mapToYargsType(type))
-    
 
-    const jsdoc = getLastJSDoc(prop)
+    const jsdoc: JSDoc | null = getLastJSDoc(prop)
     if(null === jsdoc) return [ name, { ...yargsType } ]
-    const props = transformJSDoc(jsdoc)
-    return [ name, { ...props, ...yargsType } ] as any
+
+    return [ name, { ...yargsType, ...transformJSDoc(jsdoc, type) } ]
   })
 }
 
-function transformJSDoc(jsdoc: JSDoc): { [key: string]: string } {
-  const props = transformJSDocTag(jsdoc.getTags())
+function transformJSDoc(jsdoc: JSDoc, type: Type): { [key: string]: ts.Node } {
+  const props = transformJSDocTag(jsdoc.getTags(), type)
   const comment = jsdoc.getComment()
   if(undefined === comment) return { ...props }
-  return { ...props, description: comment }
+  return { ...props, [YargsControlledTag.Description]: ts.createLiteral(comment) }
 }
 
-function transformJSDocTag(tags: JSDocTag[]): { [key: string]: string } {
-  return tags.reduce((acc, tag) => {
+function transformJSDocTag(tags: JSDocTag[], _type: Type): { [key: string]: ts.Node } {
+  return tags.reduce<{ [key: string]: ts.Node }>((acc, tag) => {
     const text = tag.getText()
     const comment = tag.getComment()
-    if(undefined === comment) return
+    if(undefined === comment) return acc
     const key: string = text.replace(/^@/, ``).trim()
-    
-    if(YargsControlledTags.includes(key)) {
-      console.log(makeUseControlledTagError(key))
-      return acc
-    } else if(!YargsSupportedTags.includes(key)) {
-      console.log(makeUnUseSupportedTagError(key))
-      return acc
+
+    switch(key) {
+      case YargsSupportedTag.Alias: {
+        acc[YargsSupportedTag.Alias] = ts.createLiteral(comment)
+        break
+      }
+
+      case YargsSupportedTag.Default: {
+        acc[YargsSupportedTag.Default] = parseExprStmt(comment)
+        break
+      }
+
+      default: {
+        const warning: string = YargsControlledTags.includes(key) 
+          ? makeUseControlledTagWarning(key)
+          : makeUnUseSupportedTagWarning(key)
+        console.warn(warning)
+        break
+      }
     }
-    
-    acc[key] = comment
+
     return acc
   }, Object.create(null))
 }
 
-function makeUseControlledTagError(tag: string) {
-  return new Error(`Option property "${tag}" was controlled, please remove jsdoc tag "@${tag}"`)
+function makeUseControlledTagWarning(tag: string): string {
+  return `[ts-cli] Option property "${tag}" was controlled, please removed`
 }
 
-function makeUnUseSupportedTagError(tag: string): Error {
-  return new Error(`Option property "${tag}" was not supported, please one of "@${YargsSupportedTags.join(', ')}"`)
+function makeUnUseSupportedTagWarning(tag: string): string {
+  return `[ts-cli] Option property "${tag}" was not supported`
 }

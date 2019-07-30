@@ -4,7 +4,6 @@ import generate, { render } from './generate'
 import resolveEntry from './resolve-entry'
 import transformInterface from './transform-option'
 
-
 export interface Options {
   entry: string
   output: string

@@ -1,6 +1,6 @@
 import * as vm from 'vm'
-import { Project, ts, SourceFile } from 'ts-morph'
-import convert, { makeUnsupportsTypeError } from './transform-option'
+import { Project, ts, SourceFile, printNode } from 'ts-morph'
+import convert, { makeUnsupportsTypeError, parseExprStmt } from './transform-option'
 import { generateCallableChain } from './generate'
 import * as yargs from 'yargs'
 
@@ -66,7 +66,7 @@ interface Options { foo: E, bar: string, baz: boolean[] }
     expect(print(code)).toMatchSnapshot()
   })
 
-  test(`unsupports type`, () => {
+  test(`unsupports type error`, () => {
     const code: string = `interface Options { foo: Date }`
     expect(() => run(code)).toThrowError(makeUnsupportsTypeError(`Date`))
   })
@@ -92,25 +92,159 @@ describe(`convert() yargs test`, () => {
 enum E { A = 'foo', B = 'bar' }
 interface Options { e: E }`
     expect(
-      runYargs(code, '--e foo')
+      runYargs(code, '--e foo', code => `\
+var E;
+(function (E) {
+    E["A"] = "foo";
+    E["B"] = "bar";
+})(E || (E = {}));
+
+${code}
+`)
     ).toMatchObject({ e: `foo` })
   })
 })
+
+describe(`alias option`, () => {
+  test(`@alias`, () => {
+    const code: string = `\
+interface Options {
+  /**@alias f */
+  foo: string
+}
+`
+    expect(print(code)).toMatchSnapshot()
+  })
+})
+
+describe(`default value`, () => {
+  test(`@default string`, () => {
+    const code: string = `\
+interface Options {
+  /**@default "bar" */
+  foo: string
+}
+`
+    expect(print(code)).toMatchSnapshot()
+  })
+
+  test(`@default number`, () => {
+    const code: string = `\
+interface Options {
+  /**@default 42 */
+  foo: number
+}
+`
+    expect(print(code)).toMatchSnapshot()
+  })
+
+  test(`@default boolean`, () => {
+    const code: string = `\
+interface Options {
+  /**@default true */
+  foo: boolean
+}
+`
+    expect(print(code)).toMatchSnapshot()
+  })
+
+  test(`@default string[]`, () => {
+    const code: string = `\
+interface Options {
+  /**@default ["a", 'b'] */
+  foo: string[]
+}
+`
+    expect(print(code)).toMatchSnapshot()
+  })
+
+  test(`@default number[]`, () => {
+    const code: string = `\
+interface Options {
+  /**@default [1, 2, 3] */
+  foo: number[]
+}
+`
+    expect(print(code)).toMatchSnapshot()
+  })
+
+  test(`@default boolean[]`, () => {
+    const code: string = `\
+interface Options {
+  /**@default [true, false] */
+  foo: boolean[]
+}
+`
+    expect(print(code)).toMatchSnapshot()
+  })
+
+  test(`@default enum`, () => {
+    const code: string = `\
+enum E { A = 'a', B = 'b' }
+interface Options {
+  /**@default E.A */
+  foo: E
+}
+`
+    expect(print(code)).toMatchSnapshot()
+  })
+})
+
+describe(`description option`, () => {
+  test(`@description`, () => {
+    const code: string = `\
+interface Options {
+  /** description */
+  foo: string
+}
+`
+    expect(print(code)).toMatchSnapshot()
+  })
+})
+
+describe(`parseExprStmt()`, () => {
+  test(`string`, () => {
+    const code = `'foo'`
+    const node = parseExprStmt(code)
+    const result = printNode(node)
+    expect(result).toEqual(`"foo"`)
+  })
+
+  test(`string[]`, () => {
+    const code = `['foo', 'bar']`
+    const node = parseExprStmt(code)
+    const result = printNode(node)
+    expect(result).toEqual(`["foo", "bar"]`)
+  })
+
+  test(`enum`, () => {
+    const code = `E.A`
+    const node = parseExprStmt(code)
+    const result = printNode(node)
+    expect(result).toEqual(`E.A`)
+  })
+})
+
 
 function run(code: string): [ ts.CallExpression[], SourceFile ] {
   const project = new Project({
     skipFileDependencyResolution: true
   })
   const sourceFile = project.createSourceFile(`tmp.ts`, code)
+  // console.log(sourceFile.compilerNode)
+  // const s = ts.createSourceFile(`tmp.ts`, '42', ts.ScriptTarget.ESNext, false, ts.ScriptKind.TS)
+  // console.log(s.statements[0].kind)
+  // const p = ts.createPrinter().printNode(ts.EmitHint.SourceFile, s, s)
+  // console.log(p)
   return [ convert(sourceFile.getInterfaces()[0]), sourceFile ]
 }
 
 function print(code: string): string {
-  const [ nodes, sourceFile ] = run(code)
-  return ts.createPrinter().printList(ts.ListFormat.MultiLine, nodes as any, sourceFile as any)
+  const [ nodes ] = run(code)
+  return nodes.map(node => printNode(node)).join('\n')
 }
 
-function runYargs(code: string, args: string = ''): yargs.Arguments {
+function runYargs(code: string, args: string = '', override?: (code: string) => string): yargs.Arguments {
   const out = vm.runInThisContext(makeCode(code, args))(require)
   console.log(out)
   return out
@@ -145,10 +279,10 @@ function runYargs(code: string, args: string = ''): yargs.Arguments {
       ]
     )
     
-    
     const bodyCode: string = ts.createPrinter().printNode(ts.EmitHint.Unspecified, constructNode, sourceFile as any)
     const resultCode: string = `(require)=>{\n return ${bodyCode}\n}`
-    console.log(resultCode)
-    return resultCode
+    const out: string = `function` === typeof override ? override(resultCode) : resultCode
+    console.log(out)
+    return out
   }
 }

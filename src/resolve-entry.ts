@@ -17,7 +17,7 @@ export default function resolveEntry(entryPath: string, exportName: string = DEF
 }
 
 function getFirstParamterTypeFromFunctionDecl(func: FunctionDeclaration): InterfaceDeclaration {
-  const params = func.getParameters()
+  const params: ParameterDeclaration[] = func.getParameters()
   if(0 === params.length) throw makeFunctionNoParamsError() 
   const param: ParameterDeclaration = params[0]
   const type = param.getType()
