@@ -6,11 +6,11 @@ import transformInterface from './transform-option'
 
 export interface Options {
   entry: string
-  output: string
+  output: string | undefined
 }
 
 export default function main(options: Options): void {
-  const { entry, output } = options
+  const { entry, output = `./cli.ts` } = options
   const entryPath: string = path.isAbsolute(entry) ? entry : path.resolve(entry)
   const [ , interfaceDecl ] = resolveEntry(entryPath)
   const optionCalls = transformInterface(interfaceDecl)

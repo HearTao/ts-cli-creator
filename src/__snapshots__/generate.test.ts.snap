@@ -1,0 +1,8 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`generateWrapper() basic 1`] = `
+"import * as yargs from \\"yargs\\";
+import command, { Options } from \\"./index\\";
+export default function main(): void {}
+"
+`;

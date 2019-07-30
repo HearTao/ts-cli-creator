@@ -20,7 +20,7 @@ function replaceCallableProperty(call: ts.CallExpression, expr: ts.Expression): 
 
 const DEFAULT_NAME: string = `yargs`
 
-interface GenerateOptions {
+export interface GenerateOptions {
   optionCalls: ts.CallExpression[]
   name: string
   strict: boolean,
@@ -55,8 +55,6 @@ export default function generate(options: Partial<GenerateOptions> = {}): ts.Nod
     ]))
   }
 
-  // acc.push(ts.createIdentifier('argv'))
-
   const callableChainNodes = generateCallableChain(acc, ts.createIdentifier(name))
   
   const yargsNode =
@@ -66,7 +64,15 @@ export default function generate(options: Partial<GenerateOptions> = {}): ts.Nod
       [
         ts.createVariableDeclaration(
           ts.createIdentifier('args'),
-          undefined,
+          ts.createTypeReferenceNode(
+            ts.createQualifiedName(
+              ts.createIdentifier(`yargs`),
+              ts.createIdentifier(`Arguments`)
+            ),
+            [
+              ts.createTypeReferenceNode(ts.createIdentifier('Options'), undefined)
+            ]
+          ),
           ts.createPropertyAccess(
             callableChainNodes,
             ts.createIdentifier(`argv`)
@@ -76,14 +82,50 @@ export default function generate(options: Partial<GenerateOptions> = {}): ts.Nod
     )
   )
 
+  const deconstructNode =
+  ts.createVariableStatement(
+    undefined,
+    ts.createVariableDeclarationList(
+      [
+        ts.createVariableDeclaration(
+          ts.createObjectBindingPattern(
+            [
+              ts.createBindingElement(
+                undefined,
+                undefined,
+                ts.createIdentifier('_'),
+                undefined
+              ),
+              ts.createBindingElement(
+                undefined,
+                undefined,
+                ts.createIdentifier('$0'),
+                undefined
+              ),
+              ts.createBindingElement(
+                ts.createToken(ts.SyntaxKind.DotDotDotToken),
+                undefined,
+                ts.createIdentifier('options'),
+                undefined
+              )
+            ]
+          ),
+          undefined,
+          ts.createIdentifier('args')
+        )
+      ],
+      ts.NodeFlags.Const
+    )
+  )
+
   const applyCommandNode =
   ts.createExpressionStatement(
     ts.createCall(ts.createIdentifier('command'), undefined, [
-      ts.createIdentifier('args')
+      ts.createIdentifier('options')
     ])
   )
 
-  return wrapNode([ yargsNode, applyCommandNode ])
+  return generateWrapper([ yargsNode, deconstructNode, applyCommandNode ])
 
   // return yargsNode
 }
@@ -93,19 +135,34 @@ export function render(nodes: ts.Node[]) {
   return prettier.format(code, { parser: 'typescript' })
 }
 
-function wrapNode(body: ts.Statement[]): ts.Node[] {
+export function generateWrapper(body: ts.Statement[]): ts.Node[] {
   return [
     ts.createImportDeclaration(
       undefined,
       undefined,
-      ts.createImportClause(ts.createIdentifier('yargs'), undefined),
+      ts.createImportClause(
+        undefined,
+        ts.createNamespaceImport(
+          ts.createIdentifier('yargs')
+        ),
+      ),
       ts.createStringLiteral('yargs')
     ),
     
     ts.createImportDeclaration(
       undefined,
       undefined,
-      ts.createImportClause(ts.createIdentifier('command'), undefined),
+      ts.createImportClause(
+        ts.createIdentifier('command'), 
+        ts.createNamedImports(
+          [
+            ts.createImportSpecifier(
+              undefined,
+              ts.createIdentifier(`Options`)
+            )
+          ]
+        )
+      ),
       ts.createStringLiteral('./index')
     ),
 

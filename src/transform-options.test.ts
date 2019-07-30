@@ -231,11 +231,6 @@ function run(code: string): [ ts.CallExpression[], SourceFile ] {
     skipFileDependencyResolution: true
   })
   const sourceFile = project.createSourceFile(`tmp.ts`, code)
-  // console.log(sourceFile.compilerNode)
-  // const s = ts.createSourceFile(`tmp.ts`, '42', ts.ScriptTarget.ESNext, false, ts.ScriptKind.TS)
-  // console.log(s.statements[0].kind)
-  // const p = ts.createPrinter().printNode(ts.EmitHint.SourceFile, s, s)
-  // console.log(p)
   return [ convert(sourceFile.getInterfaces()[0]), sourceFile ]
 }
 
