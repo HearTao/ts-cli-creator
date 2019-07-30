@@ -5,6 +5,9 @@ import resolveEntry from './resolve-entry'
 import transformInterface from './transform-option'
 
 export interface Options {
+  /**
+   * @demandOption
+   */
   entry: string
   output: string | undefined
 }

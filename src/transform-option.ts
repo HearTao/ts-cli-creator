@@ -33,7 +33,8 @@ const YargsControlledTags: string[] = [
 
 export const enum YargsSupportedTag {
   Alias = 'alias',
-  Default = 'default'
+  Default = 'default',
+  DemandOption = 'demandOption'
 }
 
 type MappedYargsType = 
@@ -196,17 +197,23 @@ function transformJSDocTag(tags: JSDocTag[], _type: Type): { [key: string]: ts.N
   return tags.reduce<{ [key: string]: ts.Node }>((acc, tag) => {
     const text = tag.getText()
     const comment = tag.getComment()
-    if(undefined === comment) return acc
     const key: string = text.replace(/^@/, ``).trim()
 
     switch(key) {
       case YargsSupportedTag.Alias: {
+        if(undefined === comment) break
         acc[YargsSupportedTag.Alias] = ts.createLiteral(comment)
         break
       }
 
       case YargsSupportedTag.Default: {
+        if(undefined === comment) break
         acc[YargsSupportedTag.Default] = parseExprStmt(comment)
+        break
+      }
+
+      case YargsSupportedTag.DemandOption: {
+        acc[YargsSupportedTag.DemandOption] = ts.createTrue()
         break
       }
 

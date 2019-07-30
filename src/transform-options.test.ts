@@ -202,6 +202,18 @@ interface Options {
   })
 })
 
+describe(`demandOption option`, () => {
+  test.only(`@demandOption`, () => {
+    const code: string = `\
+interface Options {
+  /**@demandOption */
+  foo: string
+}
+`
+    expect(print(code)).toMatchSnapshot()
+  })
+})
+
 describe(`parseExprStmt()`, () => {
   test(`string`, () => {
     const code = `'foo'`
