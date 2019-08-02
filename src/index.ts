@@ -1,34 +1,27 @@
+import * as fs  from 'fs'
 import * as path from 'path'
-import generate, { render } from './generate'
-import resolveEntry from './resolve-entry'
-import transformOption from './transform-option'
-import emit, { EmitOptions, DEFAULT_EMITOPTIONS } from './emit'
+import generate from './generator'
 
 export interface Options {
-  /**
-   * @demandOption
-   */
-  entry: string
   output: string | undefined
 }
 
-export default async function main(options: Options): Promise<void> {
-  const { entry, output = `./cli.ts` } = options
-  const entryPath: string = path.isAbsolute(entry) ? entry : path.resolve(entry)
-  const [ , interfaceDecl ] = resolveEntry(entryPath)
-  const optionCalls = transformOption(interfaceDecl)
-  const content: string = render(generate({
-    optionCalls
-  }))
+// const DEFAULT_OPTIONS: Options = {
+//   output: './cli.ts'
+// }
 
-  const filePath: string = path.isAbsolute(output) 
+export default async function main(entry: string, options: Options): Promise<void> {
+  const { output = `./cli.ts` } = options
+  const entryPath: string = path.isAbsolute(entry) ? entry : path.resolve(entry)
+  const outPath: string = path.isAbsolute(output) 
     ? output
     : path.resolve(path.dirname(entryPath), output)
-
-  emit(filePath, content)
+  const content = fs.readFileSync(entryPath, `utf-8`)
+  generate(content, outPath)
 }
 
-export { 
-  emit, EmitOptions, DEFAULT_EMITOPTIONS,
-  generate 
-}
+
+export { transformCommand, transformOption } from './transformer'
+export { default as render } from './render'
+export { default as generate } from './generator'
+export { default as emit, EmitOptions, DEFAULT_EMITOPTIONS } from './emitter'
