@@ -1,30 +1,23 @@
 import { FunctionDeclaration, SourceFile } from 'ts-morph'
 import { getJSDoc, getJSDocTag } from './transformer'
 
-const COMMAND_JSDOC_TAG = `command`
+export const COMMAND_JSDOC_TAG = `command`
 
-export default function resolve(sourceFile: SourceFile): FunctionDeclaration | undefined {
+export default function resolve(sourceFile: SourceFile): FunctionDeclaration {
   const functionDeclarations = sourceFile.getFunctions()
-  if(0 === functionDeclarations.length) {
-    reportNoFunctionWarning()
-    return undefined
-  }
-
+  if(0 === functionDeclarations.length) throw makeNoFunctionError()
   const exportedFunctionDeclarations = getExportedFunctionDeclarations(functionDeclarations)
-  if(0 === exportedFunctionDeclarations.length) {
-    reportNoExportedFunctionWarning()
-    return undefined
-  } 
+  if(0 === exportedFunctionDeclarations.length) throw makeNoExportedFunctionError()
   else if(1 === exportedFunctionDeclarations.length) return exportedFunctionDeclarations[0]
   else return getFunctionDeclaration(exportedFunctionDeclarations)
 }
 
-function reportNoFunctionWarning(): void {
-  console.warn(`No function declaration found`)
+export function makeNoFunctionError(): Error {
+  return new Error(`No function declaration found`)
 }
 
-function reportNoExportedFunctionWarning(): void {
-  console.warn(`No exported function declaration found`)
+export function makeNoExportedFunctionError(): Error {
+  return new Error(`No exported function declaration found`)
 }
 
 export function getExportedFunctionDeclarations(functionDeclarations: FunctionDeclaration[]): FunctionDeclaration[] {

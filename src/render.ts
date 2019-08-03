@@ -1,13 +1,291 @@
 import { ts } from 'ts-morph'
 import { TransformResult } from './transformer'
 
-export function generateCallableChain(calls: ts.CallExpression[], expr: ts.Expression): ts.CallExpression {
-  return calls.reverse().reduce((acc: any, call: any) => {
-    return (expr: ts.Expression) => replaceCallableProperty(acc(call), expr)
-  }, (a: any) => a)(expr)
+const CLI_LIB_NAME: string = `yargs`
+const FUNCTION_NAME: string = `main`
+
+export interface RenderOptions {
+  lib: string
+  strict: boolean,
+  help: boolean,
+  helpAlias: boolean,
+  version: boolean
 }
 
-function replaceCallableProperty(call: ts.CallExpression, expr: ts.Expression): ts.CallExpression {
+const DEFAULT_RENDER_OPTIONS: RenderOptions = {
+  lib: CLI_LIB_NAME,
+  strict: true,
+  help: true,
+  helpAlias: true,
+  version: true
+}
+
+export default function render(result: TransformResult, options: Partial<RenderOptions> = {}): ts.Node[] {
+  const { lib, strict, help, helpAlias, version } = { ...DEFAULT_RENDER_OPTIONS, ...options }
+  const acc = []
+
+  if(strict) acc.push(ts.createCall(ts.createIdentifier('strict'), undefined, []))
+  acc.push(makeCommandNode(result))
+  if(help) acc.push(ts.createCall(ts.createIdentifier('help'), undefined, []))
+  if(helpAlias) acc.push(ts.createCall(ts.createIdentifier('alias'), undefined, [ ts.createStringLiteral('help'), ts.createStringLiteral('h') ]))
+  if(version) acc.push(ts.createCall(ts.createIdentifier('version'), undefined, []))
+
+  const callableChainNodes = generateCallableChain(acc, ts.createIdentifier(lib))
+
+  const yargsNode =
+  ts.createExpressionStatement(
+    ts.createPropertyAccess(
+      callableChainNodes,
+      ts.createIdentifier(`argv`)
+    )
+  )
+
+  return makeWrapper([ yargsNode ], lib)
+}
+
+// #region wrapper
+
+export function makeWrapper(body: ts.Statement[] = [], lib: string = CLI_LIB_NAME): ts.Node[] {
+  return [
+    makeLibImportDeclarationNode(lib, `yargs`),
+    makeCommandImportDeclarationNode(`command`, `./`),
+    makeWrapperFunctionDeclaration(body)
+  ]
+}
+
+export function makeLibImportDeclarationNode(exporter: string, path: string): ts.ImportDeclaration {
+  return ts.createImportDeclaration(
+    undefined,
+    undefined,
+    ts.createImportClause(
+      undefined,
+      ts.createNamespaceImport(
+        ts.createIdentifier(exporter)
+      ),
+    ),
+    ts.createStringLiteral(path)
+  )
+}
+
+export function makeCommandImportDeclarationNode(exporter: string, path: string, namedExporter: string[] = []): ts.ImportDeclaration {
+  return ts.createImportDeclaration(
+    undefined,
+    undefined,
+    ts.createImportClause(
+      ts.createIdentifier(exporter),
+
+      0 === namedExporter.length ? undefined : 
+      ts.createNamedImports(
+        namedExporter.map(name => {
+          return ts.createImportSpecifier(
+            undefined,
+            ts.createIdentifier(name)
+          )
+        })
+      )
+
+    ),
+    ts.createStringLiteral(path)
+  )
+}
+
+export function makeWrapperFunctionDeclaration(body: ts.Statement[] = [], name: string = FUNCTION_NAME): ts.FunctionDeclaration {
+  return ts.createFunctionDeclaration(
+    undefined,
+    [
+      ts.createModifier(ts.SyntaxKind.ExportKeyword),
+      ts.createModifier(ts.SyntaxKind.DefaultKeyword),
+    ],
+    undefined,
+    ts.createIdentifier(name),
+    undefined,
+    [],
+    ts.createKeywordTypeNode(ts.SyntaxKind.VoidKeyword),
+    ts.createBlock(body, true)
+  )
+}
+
+// #endregion
+
+// #region commander
+
+function makeCommandNode(result: TransformResult): ts.CallExpression {
+  const commandNode = 
+  ts.createCall(
+    ts.createIdentifier('command'),
+    undefined,
+    [
+      makePositionalCommandString(result),
+      result.description,
+      makeBuilder(result),
+      makeHandler(result)
+    ]
+  )
+
+  return commandNode
+}
+
+function makePositionalCommandString(result: TransformResult): ts.StringLiteral {
+  const { positionals, options } = result
+  const acc: string[] = [`$0`]
+  positionals.forEach(([ name ]) => acc.push(`<${name}>`))
+  if(0 !== options.length) acc.push(`[options]`)
+  return ts.createStringLiteral(acc.join(` `))
+}
+
+function makeBuilder(result: TransformResult): ts.ArrowFunction {
+  const { positionals, options } = result
+  const acc: ts.CallExpression[] = []
+  positionals.forEach(([, call ]) => acc.push(call))
+  options.forEach(call => acc.push(call))
+
+  const callNodes = generateCallableChain(acc, ts.createIdentifier(`yargs`))
+
+  const node = 
+  ts.createArrowFunction(
+    undefined,
+    undefined,
+    [
+      ts.createParameter(
+        undefined,
+        undefined,
+        undefined,
+        ts.createIdentifier('yargs'),
+        undefined,
+        undefined,
+        undefined
+      )
+    ],
+    undefined,
+    ts.createToken(ts.SyntaxKind.EqualsGreaterThanToken),
+    ts.createBlock(
+      [
+        ts.createReturn(
+          callNodes
+        )
+      ], 
+      true
+    )
+  )
+  
+  return node
+}
+
+function makeHandler(result: TransformResult): ts.ArrowFunction {
+  const { positionals, options } = result
+  const acc: ts.CallExpression[] = []
+  positionals.forEach(([, call ]) => acc.push(call))
+  options.forEach(call => acc.push(call))
+
+  const iden: ts.Identifier = ts.createIdentifier(`args`)
+
+  const deconstructNode =
+  ts.createVariableStatement(
+    undefined,
+    ts.createVariableDeclarationList(
+      [
+        ts.createVariableDeclaration(
+          ts.createObjectBindingPattern(
+            [
+              ts.createBindingElement(
+                undefined,
+                undefined,
+                ts.createIdentifier('_'),
+                undefined
+              ),
+              ts.createBindingElement(
+                undefined,
+                undefined,
+                ts.createIdentifier('$0'),
+                undefined
+              ),
+              ...makePositionalBindingNodes(),
+              ts.createBindingElement(
+                ts.createToken(ts.SyntaxKind.DotDotDotToken),
+                undefined,
+                ts.createIdentifier('options'),
+                undefined
+              )
+            ]
+          ),
+          undefined,
+          ts.createIdentifier('args')
+        )
+      ],
+      ts.NodeFlags.Const
+    )
+  )
+
+  const applyCommandNode =
+  ts.createExpressionStatement(
+    ts.createCall(
+      ts.createIdentifier('command'), 
+      undefined, 
+      [
+        ...makePositionalIdentifierNodes(),
+        ts.createIdentifier('options')
+      ]
+    )
+  )
+
+  const node = 
+  ts.createArrowFunction(
+    undefined,
+    undefined,
+    [
+      ts.createParameter(
+        undefined,
+        undefined,
+        undefined,
+        iden,
+        undefined,
+        undefined,
+        undefined
+      )
+    ],
+    undefined,
+    ts.createToken(ts.SyntaxKind.EqualsGreaterThanToken),
+    ts.createBlock(
+      [
+        deconstructNode,
+        applyCommandNode
+      ], 
+      false
+    )
+  )
+
+  function makePositionalBindingNodes(): ts.BindingElement[] {
+    return positionals.map(([ name ]) => {
+      return ts.createBindingElement(
+        undefined,
+        undefined,
+        ts.createIdentifier(name),
+        undefined
+      )
+    })
+  }
+
+  function makePositionalIdentifierNodes(): ts.Identifier[] {
+    return positionals.map(([ name ]) => {
+      return ts.createIdentifier(name)
+    })
+  }
+  
+  return node
+}
+
+// #encregion
+
+
+// #region helper
+
+export function generateCallableChain(calls: ts.CallExpression[], expr: ts.Expression): ts.CallExpression {
+  return calls.reverse().reduce((acc, call) => {
+    return expr => replaceCallableProperty(acc(call), expr)
+  }, (a: ts.Expression) => a as ts.CallExpression)(expr)
+}
+
+export function replaceCallableProperty(call: ts.CallExpression, expr: ts.Expression): ts.CallExpression {
   return ts.createCall(
     ts.createPropertyAccess(
       expr,
@@ -18,314 +296,4 @@ function replaceCallableProperty(call: ts.CallExpression, expr: ts.Expression): 
   )
 }
 
-const DEFAULT_NAME: string = `yargs`
-
-export interface GenerateOptions {
-  name: string
-  strict: boolean,
-  help: boolean
-}
-
-const DEFAULT_GENERATE_OPTIONS: GenerateOptions = {
-  name: DEFAULT_NAME,
-  strict: true,
-  help: true
-}
-
-export default function render(result: TransformResult, options: Partial<GenerateOptions> = {}): ts.Node[] {
-  const { name, strict, help } = { ...DEFAULT_GENERATE_OPTIONS, ...options }
-  
-  const acc: ts.CallExpression[] = []
-
-  if(strict) {
-    acc.push(ts.createCall(ts.createIdentifier('strict'), undefined, []))
-  }
-  
-  acc.push(makeCommandNode(result))
-  
-  if(help) {
-    acc.push(ts.createCall(ts.createIdentifier('help'), undefined, []))
-    acc.push(ts.createCall(ts.createIdentifier('alias'), undefined, [
-      ts.createStringLiteral('help'),
-      ts.createStringLiteral('h')
-    ]))
-  }
-
-  const yargsIdenNode = 
-  ts.createParen(
-    ts.createAsExpression(
-      ts.createIdentifier(name),
-      ts.createTypeReferenceNode(
-        ts.createQualifiedName(
-          ts.createIdentifier(name),
-          ts.createIdentifier('Argv')
-        ),
-        [
-          ts.createTypeReferenceNode(
-            ts.createIdentifier('Options'),
-            undefined
-          )
-        ]
-      )
-    )
-  )
-
-  const callableChainNodes = generateCallableChain(acc, yargsIdenNode)
-  
-  // const yargsNode =
-  // ts.createVariableStatement(
-  //   undefined,
-  //   ts.createVariableDeclarationList(
-  //     [
-  //       ts.createVariableDeclaration(
-  //         ts.createIdentifier('args'),
-  //         ts.createTypeReferenceNode(
-  //           ts.createQualifiedName(
-  //             ts.createIdentifier(`yargs`),
-  //             ts.createIdentifier(`Arguments`)
-  //           ),
-  //           [
-  //             ts.createTypeReferenceNode(ts.createIdentifier('Options'), undefined)
-  //           ]
-  //         ),
-  //         ts.createPropertyAccess(
-  //           callableChainNodes,
-  //           ts.createIdentifier(`argv`)
-  //         )
-  //       )
-  //     ],
-  //     ts.NodeFlags.Const
-  //   )
-  // )
-  const yargsNode =
-  ts.createExpressionStatement(
-    ts.createPropertyAccess(
-      callableChainNodes,
-      ts.createIdentifier(`argv`)
-    )
-  )
-
-  return makeWrapper([ yargsNode ])
-
-  // return yargsNode
-}
-
-export function makeWrapper(body: ts.Statement[]): ts.Node[] {
-  return [
-    ts.createImportDeclaration(
-      undefined,
-      undefined,
-      ts.createImportClause(
-        undefined,
-        ts.createNamespaceImport(
-          ts.createIdentifier('yargs')
-        ),
-      ),
-      ts.createStringLiteral('yargs')
-    ),
-    
-    ts.createImportDeclaration(
-      undefined,
-      undefined,
-      ts.createImportClause(
-        ts.createIdentifier('command'), 
-        ts.createNamedImports(
-          [
-            ts.createImportSpecifier(
-              undefined,
-              ts.createIdentifier(`Options`)
-            )
-          ]
-        )
-      ),
-      ts.createStringLiteral('./index')
-    ),
-
-    ts.createFunctionDeclaration(
-      undefined,
-      [
-        ts.createModifier(ts.SyntaxKind.ExportKeyword),
-        ts.createModifier(ts.SyntaxKind.DefaultKeyword),
-      ],
-      undefined,
-      ts.createIdentifier('main'),
-      undefined,
-      [],
-      ts.createKeywordTypeNode(ts.SyntaxKind.VoidKeyword),
-      ts.createBlock(body, true)
-    )
-  ]
-}
-
-
-function makeCommandNode(result: TransformResult): ts.CallExpression {
-  const { description, positionals, options } = result
-  
-  const commandNode = 
-  ts.createCall(
-    ts.createIdentifier('command'),
-    undefined,
-    [
-      makePositionalCommandString(),
-      description,
-      makeBuilder(),
-      makeHandler()
-    ]
-  )
-
-  function makePositionalCommandString(): ts.StringLiteral {
-    const acc: string[] = [`$0`]
-    positionals.forEach(([ name ]) => acc.push(`<${name}>`))
-    acc.push(`[options]`)
-    return ts.createStringLiteral(acc.join(` `))
-  }
-
-  function makeBuilder(): ts.ArrowFunction {
-    const acc: ts.CallExpression[] = []
-    positionals.forEach(([, call ]) => acc.push(call))
-    options.forEach(call => acc.push(call))
-
-    const callNodes = generateCallableChain(acc, ts.createIdentifier(`yargs`))
-
-    const node = 
-    ts.createArrowFunction(
-      undefined,
-      undefined,
-      [
-        ts.createParameter(
-          undefined,
-          undefined,
-          undefined,
-          ts.createIdentifier('yargs'),
-          undefined,
-          undefined,
-          undefined
-        )
-      ],
-      undefined,
-      ts.createToken(ts.SyntaxKind.EqualsGreaterThanToken),
-      ts.createBlock(
-        [
-          ts.createReturn(
-            callNodes
-          )
-        ], 
-        true
-      )
-    )
-    
-    return node
-  }
-
-  function makeHandler(): ts.ArrowFunction {
-    const acc: ts.CallExpression[] = []
-    positionals.forEach(([, call ]) => acc.push(call))
-    options.forEach(call => acc.push(call))
-
-    const iden: ts.Identifier = ts.createIdentifier(`args`)
-
-    const deconstructNode =
-    ts.createVariableStatement(
-      undefined,
-      ts.createVariableDeclarationList(
-        [
-          ts.createVariableDeclaration(
-            ts.createObjectBindingPattern(
-              [
-                // ts.createBindingElement(
-                //   undefined,
-                //   ts.createIdentifier(`_`),
-                //   ts.createArrayBindingPattern(
-                //     makePositionalBindingNodes()
-                //   ),
-                //   undefined
-                // ),
-                ts.createBindingElement(
-                  undefined,
-                  undefined,
-                  ts.createIdentifier('_'),
-                  undefined
-                ),
-                ts.createBindingElement(
-                  undefined,
-                  undefined,
-                  ts.createIdentifier('$0'),
-                  undefined
-                ),
-                ...makePositionalBindingNodes(),
-                ts.createBindingElement(
-                  ts.createToken(ts.SyntaxKind.DotDotDotToken),
-                  undefined,
-                  ts.createIdentifier('options'),
-                  undefined
-                )
-              ]
-            ),
-            undefined,
-            ts.createIdentifier('args')
-          )
-        ],
-        ts.NodeFlags.Const
-      )
-    )
-
-    const applyCommandNode =
-    ts.createExpressionStatement(
-      ts.createCall(
-        ts.createIdentifier('command'), 
-        undefined, 
-        [
-          ...makePositionalIdentifierNodes(),
-          ts.createIdentifier('options')
-        ]
-      )
-    )
-
-    const node = 
-    ts.createArrowFunction(
-      undefined,
-      undefined,
-      [
-        ts.createParameter(
-          undefined,
-          undefined,
-          undefined,
-          iden,
-          undefined,
-          undefined,
-          undefined
-        )
-      ],
-      undefined,
-      ts.createToken(ts.SyntaxKind.EqualsGreaterThanToken),
-      ts.createBlock(
-        [
-          deconstructNode,
-          applyCommandNode
-        ], 
-        false
-      )
-    )
-
-    function makePositionalBindingNodes(): ts.BindingElement[] {
-      return positionals.map(([ name ]) => {
-        return ts.createBindingElement(
-          undefined,
-          undefined,
-          ts.createIdentifier(name),
-          undefined
-        )
-      })
-    }
-
-    function makePositionalIdentifierNodes(): ts.Identifier[] {
-      return positionals.map(([ name ]) => {
-        return ts.createIdentifier(name)
-      })
-    }
-    
-    return node
-  }
-
-  return commandNode
-}
+// #endregion

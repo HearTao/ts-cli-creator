@@ -8,11 +8,12 @@ export default function main(): void {
       "",
       yargs => {
         return yargs
-          .positional("entry", { type: "string", default: '' })
+          .positional("entry", { type: "string" })
           .option("output", { type: "string" });
       },
       args => {
         const { _, $0, entry, ...options } = args;
+        if(undefined === entry) throw 42
         command(entry, options);
       }
     )

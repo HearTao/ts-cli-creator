@@ -1,49 +1,26 @@
-import { ts, Project, SourceFile, FunctionDeclaration, printNode } from 'ts-morph'
-import { transformCommand, getJSDoc, getJSDocTag } from './transformer'
-import render from './render'
-import emit from './emitter'
-import resolve from './resolver'
+import { ts, Project, printNode } from 'ts-morph'
 import * as prettier from 'prettier'
+import resolve from './resolver'
+import { transformCommand } from './transformer'
+import render from './render'
+import emit, { EmitOptions } from './emitter'
 
-const COMMAND_JSDOC_TAG: string = `command`
+const TEMPORARY_FILE_NAME: string = `__CLI__.ts`
 
-export default function generate(code: string, outpath: string) {
+type Options = EmitOptions
+
+export default function generate(code: string, outpath: string, options: Partial<Options> = {}): void {
   const project = new Project()
-  const sourceFile: SourceFile = project.createSourceFile(`_cli.ts`, code)
+  const sourceFile = project.createSourceFile(TEMPORARY_FILE_NAME, code)
   const functionDeclaration = resolve(sourceFile)
   if(undefined === functionDeclaration) throw 42 /**@todo */
   const result = transformCommand(functionDeclaration)
   const out = render(result)
-  emit(outpath, print(out))
+  emit(outpath, print(out), options)
 }
 
-export function print(nodes: ts.Node[]): string {
-  const code = nodes.map(node => printNode(node)).join(`\n`)
-  return prettier.format(code, { parser: 'typescript' })
-}
-
-export function getCommandFuncDecl(functionDecls: FunctionDeclaration[]): FunctionDeclaration {
-  const tagedFuncDecl = getTagedFuncDecl(functionDecls)
-  if(undefined !== tagedFuncDecl) return tagedFuncDecl
-  return getDefaultFuncDecl(functionDecls)
-}
-
-function getTagedFuncDecl(functionDeclarations: FunctionDeclaration[]): FunctionDeclaration | undefined {
-  return functionDeclarations.find(decl => {
-    const jsdoc = getJSDoc(decl)
-    if(null === jsdoc) return false
-    const tag = getJSDocTag(jsdoc, COMMAND_JSDOC_TAG)
-    if(null === tag) return false
-    return true
-  })
-}
-
-function getDefaultFuncDecl(functionDeclarations: FunctionDeclaration[]): FunctionDeclaration {
-  const decl: FunctionDeclaration | undefined = functionDeclarations.find(decl => decl.isDefaultExport())
-  if(undefined === decl) throw makeDefaultCommandFunctionNotFoundError()
-  return decl
-}
-
-function makeDefaultCommandFunctionNotFoundError(): Error {
-  return new Error(`Default command function not found`)
+export function print(nodes: ts.Node | ts.Node[], options: prettier.Options = {}): string {
+  const ns = Array.isArray(nodes) ? nodes : [ nodes ]
+  const code = ns.map(node => printNode(node)).join(`\n`)
+  return prettier.format(code, { parser: 'typescript', ...options })
 }

@@ -21,6 +21,7 @@ export default async function main(entry: string, options: Options): Promise<voi
 }
 
 
+export { default as resolve, COMMAND_JSDOC_TAG } from './resolver'
 export { transformCommand, transformOption } from './transformer'
 export { default as render } from './render'
 export { default as generate } from './generator'

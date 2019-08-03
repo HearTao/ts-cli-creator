@@ -1,13 +1,19 @@
 import { FunctionDeclaration, Project } from "ts-morph"
-import resolve, { isTaged, sortFunctionDeclarations, getFunctionDeclaration, getExportedFunctionDeclarations } from './resolver'
+import resolve, { isTaged, sortFunctionDeclarations, getFunctionDeclaration, getExportedFunctionDeclarations, makeNoFunctionError, makeNoExportedFunctionError } from './resolver'
 
 describe(`resolve()`, () => {
-  test(`undefined`, () => {
+  test(`throw no function found`, () => {
     const code = ``
     const project = new Project()
     const sourceFile = project.createSourceFile(`tmp.ts`, code)
-    const resolved = resolve(sourceFile)
-    expect(resolved).toBeUndefined()
+    expect(() => resolve(sourceFile)).toThrowError(makeNoFunctionError())
+  })
+
+  test(`throw no export function found`, () => {
+    const code = `function(){}`
+    const project = new Project()
+    const sourceFile = project.createSourceFile(`tmp.ts`, code)
+    expect(() => resolve(sourceFile)).toThrowError(makeNoExportedFunctionError())
   })
 
   test(`resolve function`, () => {
