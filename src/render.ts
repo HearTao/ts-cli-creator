@@ -176,6 +176,7 @@ function makeCommandNode(result: TransformResult): ts.CallExpression {
   function makePositionalCommandString(): ts.StringLiteral {
     const acc: string[] = [`$0`]
     positionals.forEach(([ name ]) => acc.push(`<${name}>`))
+    acc.push(`[options]`)
     return ts.createStringLiteral(acc.join(` `))
   }
 
@@ -231,12 +232,18 @@ function makeCommandNode(result: TransformResult): ts.CallExpression {
           ts.createVariableDeclaration(
             ts.createObjectBindingPattern(
               [
+                // ts.createBindingElement(
+                //   undefined,
+                //   ts.createIdentifier(`_`),
+                //   ts.createArrayBindingPattern(
+                //     makePositionalBindingNodes()
+                //   ),
+                //   undefined
+                // ),
                 ts.createBindingElement(
                   undefined,
-                  ts.createIdentifier(`_`),
-                  ts.createArrayBindingPattern(
-                    makePositionalBindingNodes()
-                  ),
+                  undefined,
+                  ts.createIdentifier('_'),
                   undefined
                 ),
                 ts.createBindingElement(
@@ -245,6 +252,7 @@ function makeCommandNode(result: TransformResult): ts.CallExpression {
                   ts.createIdentifier('$0'),
                   undefined
                 ),
+                ...makePositionalBindingNodes(),
                 ts.createBindingElement(
                   ts.createToken(ts.SyntaxKind.DotDotDotToken),
                   undefined,

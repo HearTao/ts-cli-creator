@@ -1,22 +1,18 @@
-import * as yargs from "yargs";
-import command, { Options } from "./index";
+import * as yargs from "yargs"
+import command from "./index"
 export default function main(): void {
-  (yargs as yargs.Argv<Options>)
+  yargs
     .strict()
     .command(
-      "$0 <entry>",
+      "$0 <entry> [options]",
       "",
       yargs => {
         return yargs
-          .positional("entry", { type: "string" })
+          .positional("entry", { type: "string", default: '' })
           .option("output", { type: "string" });
       },
       args => {
-        const {
-          _: [entry],
-          $0,
-          ...options
-        } = args;
+        const { _, $0, entry, ...options } = args;
         command(entry, options);
       }
     )

@@ -23,6 +23,7 @@
     "@types/node": "^12.6.8",
     "@types/prompts": "^2.0.1",
     "@types/yargs": "^13.0.0",
+    "bin-file-gen": "0.0.4",
     "jest": "^24.8.0",
     "readme-file-gen": "0.0.1",
     "test-dir-gen": "0.0.1",

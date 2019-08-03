@@ -2,6 +2,7 @@ import { ts, Project, SourceFile, FunctionDeclaration, printNode } from 'ts-morp
 import { transformCommand, getJSDoc, getJSDocTag } from './transformer'
 import render from './render'
 import emit from './emitter'
+import resolve from './resolver'
 import * as prettier from 'prettier'
 
 const COMMAND_JSDOC_TAG: string = `command`
@@ -9,13 +10,14 @@ const COMMAND_JSDOC_TAG: string = `command`
 export default function generate(code: string, outpath: string) {
   const project = new Project()
   const sourceFile: SourceFile = project.createSourceFile(`_cli.ts`, code)
-  const functionDeclaration = getCommandFuncDecl(sourceFile.getFunctions())
+  const functionDeclaration = resolve(sourceFile)
+  if(undefined === functionDeclaration) throw 42 /**@todo */
   const result = transformCommand(functionDeclaration)
   const out = render(result)
   emit(outpath, print(out))
 }
 
-export function print(nodes: ts.Node[]) {
+export function print(nodes: ts.Node[]): string {
   const code = nodes.map(node => printNode(node)).join(`\n`)
   return prettier.format(code, { parser: 'typescript' })
 }

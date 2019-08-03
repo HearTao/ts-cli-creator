@@ -283,7 +283,8 @@ export function makeCommandProperties(params: ParameterDeclaration[]): Transform
       name,
       properties: {
         ...makeCommandTypeExpression(param),
-        ...makeCommandDescriptionExpression(param)
+        ...makeCommandDescriptionExpression(param),
+        ['demandOption']: ts.createTrue()
       }
     }
   })

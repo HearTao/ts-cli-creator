@@ -3,7 +3,7 @@ import * as path from 'path'
 import generate from './generator'
 
 export interface Options {
-  output: string | undefined
+  output?: string
 }
 
 // const DEFAULT_OPTIONS: Options = {
