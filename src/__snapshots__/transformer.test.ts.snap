@@ -47,3 +47,51 @@ exports[`demandOption option @demandOption 1`] = `"option(\\"foo\\", { type: \\"
 exports[`demandOption option @required 1`] = `"option(\\"foo\\", { type: \\"string\\", demandOption: true })"`;
 
 exports[`description option @description 1`] = `"option(\\"foo\\", { type: \\"string\\", description: \\"description\\" })"`;
+
+exports[`transformOptions() alias option @alias 1`] = `"option(\\"foo\\", { type: \\"string\\", alias: \\"f\\" })"`;
+
+exports[`transformOptions() convert() types Array<boolean> 1`] = `"option(\\"foo\\", { type: \\"boolean\\", array: true })"`;
+
+exports[`transformOptions() convert() types Array<number> 1`] = `"option(\\"foo\\", { type: \\"number\\", array: true })"`;
+
+exports[`transformOptions() convert() types Array<string> 1`] = `"option(\\"foo\\", { type: \\"string\\", array: true })"`;
+
+exports[`transformOptions() convert() types boolean 1`] = `"option(\\"foo\\", { type: \\"boolean\\" })"`;
+
+exports[`transformOptions() convert() types boolean[] 1`] = `"option(\\"foo\\", { type: \\"boolean\\", array: true })"`;
+
+exports[`transformOptions() convert() types enum 1`] = `"option(\\"foo\\", { type: \\"string\\", choices: [E.A, E.B] })"`;
+
+exports[`transformOptions() convert() types mulit properties 1`] = `
+"option(\\"foo\\", { type: \\"string\\", choices: [E.A, E.B] })
+option(\\"bar\\", { type: \\"string\\" })
+option(\\"baz\\", { type: \\"boolean\\", array: true })"
+`;
+
+exports[`transformOptions() convert() types number 1`] = `"option(\\"foo\\", { type: \\"number\\" })"`;
+
+exports[`transformOptions() convert() types number[] 1`] = `"option(\\"foo\\", { type: \\"number\\", array: true })"`;
+
+exports[`transformOptions() convert() types string 1`] = `"option(\\"foo\\", { type: \\"string\\" })"`;
+
+exports[`transformOptions() convert() types string[] 1`] = `"option(\\"foo\\", { type: \\"string\\", array: true })"`;
+
+exports[`transformOptions() default value @default boolean 1`] = `"option(\\"foo\\", { type: \\"boolean\\", default: true })"`;
+
+exports[`transformOptions() default value @default boolean[] 1`] = `"option(\\"foo\\", { type: \\"boolean\\", array: true, default: [true, false] })"`;
+
+exports[`transformOptions() default value @default enum 1`] = `"option(\\"foo\\", { type: \\"string\\", choices: [E.A, E.B], default: E.A })"`;
+
+exports[`transformOptions() default value @default number 1`] = `"option(\\"foo\\", { type: \\"number\\", default: 42 })"`;
+
+exports[`transformOptions() default value @default number[] 1`] = `"option(\\"foo\\", { type: \\"number\\", array: true, default: [1, 2, 3] })"`;
+
+exports[`transformOptions() default value @default string 1`] = `"option(\\"foo\\", { type: \\"string\\", default: \\"bar\\" })"`;
+
+exports[`transformOptions() default value @default string[] 1`] = `"option(\\"foo\\", { type: \\"string\\", array: true, default: [\\"a\\", \\"b\\"] })"`;
+
+exports[`transformOptions() demandOption option @demandOption 1`] = `"option(\\"foo\\", { type: \\"string\\", demandOption: true })"`;
+
+exports[`transformOptions() demandOption option @required 1`] = `"option(\\"foo\\", { type: \\"string\\", demandOption: true })"`;
+
+exports[`transformOptions() description option @description 1`] = `"option(\\"foo\\", { type: \\"string\\", description: \\"description\\" })"`;

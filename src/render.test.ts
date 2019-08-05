@@ -1,4 +1,3 @@
-import * as ts from 'typescript'
 import render, { makeWrapper, makeLibImportDeclarationNode, makeArrowFunctionNode } from './render'
 import { print } from './generator'
 import { transformCommand } from './transformer'

@@ -11,123 +11,45 @@ type TransformCallResult = {
   properties: { [key: string]: ts.Expression }
 }
 
+const enum CliType {
+  String = 'string',
+  Number = 'number',
+  Boolean = 'boolean',
+}
+
+type CliTypeProperties = 
+  | { type: ts.StringLiteral }
+  | { type: ts.StringLiteral, array: ts.BooleanLiteral } 
+  | { type: ts.StringLiteral, chooise: ts.ArrayLiteralExpression }
+
+type CliDescriptionProperty = { description: ts.StringLiteral }
+
+
+function makeTypeExpression(type: CliType): CliTypeProperties {
+  return { type: ts.createLiteral(type) }
+}
+
+function makeArrayTypeExpression(type: CliType): CliTypeProperties {
+  return {
+    ...makeTypeExpression(type),
+    array: ts.createTrue()
+  }
+}
+
+function makeEnumTypeExpression(type: CliType, nodes: ts.ArrayLiteralExpression): CliTypeProperties {
+  return {
+    ...makeTypeExpression(type),
+    chooise: nodes
+  }
+}
+
 // #region option
 
-const enum OptionType {
-  String,
-  Number,
-  Boolean,
-  ArrayString,
-  ArrayNumber,
-  ArrayBoolean,
-  Enum
-}
-
-export const enum OptionControlledTag {
-  Type = 'type',
-  Array = 'array',
-  Choices = 'choices',
-  Description = 'description',
-  Desc = 'desc',
-  Describe = 'describe'
-}
-
-export const enum OptionSupportedTag {
+const enum CliOptionsJSDocTag {
   Alias = 'alias',
   Default = 'default',
   DemandOption = 'demandOption',
   Required = 'required'
-}
-
-const OptionControlledTags: string[] = [
-  OptionControlledTag.Type,
-  OptionControlledTag.Array,
-  OptionControlledTag.Choices,
-  OptionControlledTag.Description,
-  OptionControlledTag.Describe,
-  OptionControlledTag.Desc
-]
-
-type MappedOptionType = 
-  | [ OptionType.String, null ]
-  | [ OptionType.Number, null ]
-  | [ OptionType.Boolean, null ]
-  | [ OptionType.ArrayString, null ]
-  | [ OptionType.ArrayNumber, null ]
-  | [ OptionType.ArrayBoolean, null ]
-  | [ OptionType.Enum, EnumDeclaration ]
-
-function mapToOptionType(type: Type): MappedOptionType {
-  const text: string = type.getText()
-  switch(text) {
-    case `string`: return [ OptionType.String, null ]
-    case `number`: return [ OptionType.Number, null ]
-    case `boolean`: return [ OptionType.Boolean, null ]
-    case `string[]`: 
-    case `Array<string>`: return [ OptionType.ArrayString, null ]
-    case `number[]`: 
-    case `Array<number>`: return [ OptionType.ArrayNumber, null ]
-    case `boolean[]`:
-    case `Array<boolean>`: return [ OptionType.ArrayBoolean, null ]
-    default: {
-      const typeError: Error = makeUnsupportsTypeError(`option`, text)
-      const symbol = type.getSymbol()
-      if(undefined === symbol) throw typeError
-      const decls = symbol.getDeclarations()
-      if(0 === decls.length) throw typeError
-      const decl = decls[0]
-      if(!isEnumDeclaration(decl)) throw typeError
-      return [ OptionType.Enum, decl ]
-    }
-  }
-}
-
-function isEnumDeclaration(node: Node): node is EnumDeclaration {
-  return ts.SyntaxKind.EnumDeclaration === node.getKind()
-}
-
-function transformOptionType(mappedType: MappedOptionType): { [key: string]: ts.Expression } {
-  switch(mappedType[0]) {
-    case OptionType.String: return { 
-      [OptionControlledTag.Type]: ts.createStringLiteral(`string`) 
-    }
-    case OptionType.Number: return { 
-      [OptionControlledTag.Type]: ts.createStringLiteral(`number`) 
-    }
-    case OptionType.Boolean: return { 
-      [OptionControlledTag.Type]: ts.createStringLiteral(`boolean`) 
-    }
-    case OptionType.ArrayString: return { 
-      [OptionControlledTag.Type]: ts.createStringLiteral(`string`), 
-      [OptionControlledTag.Array]: ts.createTrue()
-    }
-    case OptionType.ArrayNumber: return { 
-      [OptionControlledTag.Type]: ts.createStringLiteral(`number`), 
-      [OptionControlledTag.Array]: ts.createTrue()
-    }
-    case OptionType.ArrayBoolean: return { 
-      [OptionControlledTag.Type]: ts.createStringLiteral(`boolean`), 
-      [OptionControlledTag.Array]: ts.createTrue()
-    }
-    case OptionType.Enum: return makeEnumOption(mappedType[1])
-    default: throw makeUnknownYargsTypeError(mappedType[0])
-  }
-}
-
-function makeEnumOption(enumDecl: EnumDeclaration): ReturnType<typeof transformOptionType> {
-  const enumName: string = enumDecl.getName()
-  const members = enumDecl.getMembers()
-  const nodes = members.map(member => {
-    const name: string = member.getName()
-    return ts.createPropertyAccess(
-      ts.createIdentifier(enumName),
-      ts.createIdentifier(name)
-    )
-  })
-  return {
-    [OptionControlledTag.Type]: ts.createStringLiteral(`string`),
-    [OptionControlledTag.Choices]: ts.createArrayLiteral(nodes, false)
-  }
 }
 
 
@@ -142,71 +64,72 @@ function makeOptionsProperties(decl: InterfaceDeclaration): TransformCallResult[
     const name: string = property.getName()
     
     const type = property.getType()
-    const typeNode = transformOptionType(mapToOptionType(type))
-    const jsdoc: JSDoc | undefined = getJSDoc(property)
+    const typeExpr = makeOptionsTypeExpression(type)
+    const descExpr = makeDescriptionExpression(decl)
+    const tagExpr = makeOptionJSDocTagExpression(decl)
 
     return { 
       name, 
       properties: { 
-        ...typeNode, 
-        ...(jsdoc ? makeOptionJSDocNode(jsdoc, type) : {}) 
+        ...typeExpr,
+        ...descExpr,
+        ...tagExpr
       } 
     }
   })
 }
 
-function makeOptionJSDocNode(jsdoc: JSDoc, type: Type): { [key: string]: ts.Expression } {
-  const props = makeOptionJSDocTag(jsdoc.getTags(), type)
-  const comment: string | undefined = jsdoc.getComment()
-  return { 
-    ...props, 
-    ...(comment ? makeDescriptionNode(OptionControlledTag.Description, comment) : {})
+function makeOptionsTypeExpression(type: Type): CliTypeProperties {
+  if(type.isString()) return makeTypeExpression(CliType.String)
+  else if(type.isNumber()) return makeTypeExpression(CliType.Number)
+  else if(type.isBoolean()) return makeTypeExpression(CliType.Boolean)
+  else if(type.isArray()) {
+    const elemType = type.getArrayElementType()
+    if(undefined === elemType) throw new Error(`Unknown array element type`)
+    if(type.isString()) return makeArrayTypeExpression(CliType.String)
+    else if(type.isNumber()) return makeArrayTypeExpression(CliType.Number)
+    else if(type.isBoolean()) return makeArrayTypeExpression(CliType.Boolean)
+    else throw new Error(`Unsupports array element type ${elemType.getText()}`)
   }
+  else if(type.isEnum()) {
+    const decl = getEnumDeclarationFromType(type)
+    const nodes = makeEnumMembersArrayNode(decl)
+    return makeEnumTypeExpression(CliType.String, nodes)
+  }
+  else throw new TypeError(`Unsupportsed options type "${type.getText()}"`)
 }
 
-function makeOptionJSDocTag(tags: JSDocTag[], _type: Type): { [key: string]: ts.Expression } {
-  return tags.reduce<{ [key: string]: ts.Expression }>((acc, tag) => {
+function makeOptionJSDocTagExpression(decl: JSDocableNode): { [key: string]: ts.Expression } {
+  const jsdoc = getJSDoc(decl)
+  if(undefined === jsdoc) return {}
+  return jsdoc.getTags().reduce<{ [key: string]: ts.Expression }>((acc, tag) => {
     const comment: string | undefined = tag.getComment()
-    const name: string = stringifyJSDocTag(tag)
+    const name: string = tag.getTagName()
 
     switch(name) {
-      case OptionSupportedTag.Alias: {
+      case CliOptionsJSDocTag.Alias: {
         if(undefined === comment) break
-        acc[OptionSupportedTag.Alias] = ts.createLiteral(comment)
+        acc[CliOptionsJSDocTag.Alias] = ts.createLiteral(comment)
         break
       }
 
-      case OptionSupportedTag.Default: {
+      case CliOptionsJSDocTag.Default: {
         if(undefined === comment) break
-        acc[OptionSupportedTag.Default] = parseExprStmt(comment)
+        acc[CliOptionsJSDocTag.Default] = parseExprStmt(comment)
         break
       }
 
-      case OptionSupportedTag.DemandOption:
-      case OptionSupportedTag.Required: {
-        acc[OptionSupportedTag.DemandOption] = ts.createTrue()
+      case CliOptionsJSDocTag.DemandOption:
+      case CliOptionsJSDocTag.Required: {
+        acc[CliOptionsJSDocTag.DemandOption] = ts.createTrue()
         break
       }
 
-      default: {
-        const warning: string = OptionControlledTags.includes(name) 
-          ? makeUseControlledTagWarning(name)
-          : makeUnUseSupportedTagWarning(name)
-        console.warn(warning)
-        break
-      }
+      default: throw new Error(`Unsupports tag @${name}`)
     }
 
     return acc
   }, Object.create(null))
-}
-
-function makeUseControlledTagWarning(tag: string): string {
-  return `[ts-cli] Option property "${tag}" was controlled, please removed`
-}
-
-function makeUnUseSupportedTagWarning(tag: string): string {
-  return `[ts-cli] Option property "${tag}" was not supported`
 }
 
 // #endregion
@@ -214,46 +137,38 @@ function makeUnUseSupportedTagWarning(tag: string): string {
 
 // #region comnmand
 
-const enum CommandType {
-  String = 'string',
-  Number = 'number',
-  Boolean = 'boolean',
-  Enum = 'string'
-}
-
-const enum CommandControlledTag {
-  Type = 'type',
-  Choices = 'choices',
-  Description = 'description',
-  Desc = 'desc',
-  Describe = 'describe'
-}
-
-export const COMMAND_JSDOC_TAG: string = `command`
 const COMMAND_POSITIONALS_NAME: string = `positional`
-const COMMAND_OPTIONS_PARAMETER_REGEXP: RegExp = /^options?$/
+export const COMMAND_OPTIONS_PARAMETER_REGEXP: RegExp = /^options?$/
 export const COMMAND_POSITIONALS_JSDOCTAG_REGEXP: RegExp = /^(param|arg|argument)/
 
 export function transformCommand(decl: FunctionDeclaration): TransformResult {
   const [ positionalParams, optionParam ] = getParams(decl)
-  const positionals: [ string, ts.CallExpression ][] = makeCommandPositionals(positionalParams)
-  const options: ts.CallExpression[] = optionParam ? transformOption(getOptionsInterfaceDecl(optionParam)) : []
-  
+  const positionals = makeCommandPositionals(positionalParams)
+  const options = optionParam ? transformOption(getOptionsInterfaceDecl(optionParam)) : []
+  const description = getCommandDescription(decl)
+
   return {
-    description: ts.createStringLiteral(''),
+    description,
     positionals,
     options
   }
 }
 
+export function getCommandDescription(decl: FunctionDeclaration): ts.StringLiteral {
+  const jsdoc = getJSDoc(decl)
+  if(undefined === jsdoc) return ts.createStringLiteral('')
+  const comment = jsdoc.getComment()
+  if(undefined === comment) return ts.createStringLiteral('')
+  return ts.createStringLiteral(comment)
+}
+
 function getParams(decl: FunctionDeclaration, testRegExp: RegExp = COMMAND_OPTIONS_PARAMETER_REGEXP): [ ParameterDeclaration[], ParameterDeclaration | undefined ] {
   let optionParam: ParameterDeclaration | undefined
   const params: ParameterDeclaration[] = decl.getParameters()
-  const lstParam: ParameterDeclaration | undefined = params.pop()
+  const lstParam = params.pop()
   if(undefined === lstParam) return [ params, optionParam ]
   
-  const lstName: string = lstParam.getName()
-
+  const lstName = lstParam.getName()
   if(testRegExp.test(lstName)) optionParam = lstParam
   else params.push(lstParam)
 
@@ -272,51 +187,58 @@ function getOptionsInterfaceDecl(param: ParameterDeclaration): InterfaceDeclarat
 }
 
 function makeCommandPositionals(params: ParameterDeclaration[]): [ string, ts.CallExpression ][] {
-  const props: TransformCallResult[] = makeCommandProperties(params)
-  return props.map(result => ([ result.name, makeCallableNode(COMMAND_POSITIONALS_NAME, result) ]))
+  return makeCommandProperties(params).map(result => ([ 
+    result.name,
+    makeCallableNode(COMMAND_POSITIONALS_NAME, result) 
+  ]))
 }
 
 export function makeCommandProperties(params: ParameterDeclaration[]): TransformCallResult[] {
   return params.map(param => {
     const name: string = param.getName()
+    const [ typeExpr ] = makeCommandTypeExpression(param)
+    const descExpr = makeCommandDescriptionExpression(param)
     return {
       name,
       properties: {
-        ...makeCommandTypeExpression(param),
-        ...makeCommandDescriptionExpression(param)
+        ...typeExpr,
+        ...descExpr
       }
     }
   })
 }
 
-export function makeCommandTypeExpression(param: ParameterDeclaration): { [key: string]: ts.Expression } {
+export function makeCommandTypeExpression(param: ParameterDeclaration): [CliTypeProperties, string[] | undefined] {
   const name: string = param.getName()
   const type: Type = param.getType()
-  
   if(type.isAny()) {
-    reportPositionalAnyType(name)
-    return { [CommandControlledTag.Type]: ts.createStringLiteral(CommandType.String) }
+    reportPositionalAnyTypeWarning(name)
+    return [makeTypeExpression(CliType.String), undefined]
   }
-  else if(type.isString()) return { [CommandControlledTag.Type]: ts.createStringLiteral(CommandType.String) }
-  else if(type.isNumber()) return { [CommandControlledTag.Type]: ts.createStringLiteral(CommandType.Number) }
-  else if(type.isBoolean()) return { [CommandControlledTag.Type]: ts.createStringLiteral(CommandType.Boolean) }
-  // else if(type.isEnum()) return ts.createIdentifier()
+  else if(type.isString()) return [makeTypeExpression(CliType.String), undefined]
+  else if(type.isNumber()) return [makeTypeExpression(CliType.Number), undefined]
+  else if(type.isBoolean()) return [makeTypeExpression(CliType.Boolean), undefined]
+  else if(type.isEnum()) {
+    const decl = getEnumDeclarationFromType(type)
+    const nodes = makeEnumMembersArrayNode(decl)
+    return [makeEnumTypeExpression(CliType.String, nodes), undefined]
+  }
   else throw makeUnsupportsTypeError(COMMAND_POSITIONALS_NAME, type.getText())
 }
 
-export function reportPositionalAnyType(name: string): void {
+export function reportPositionalAnyTypeWarning(name: string): void {
   console.warn(`Warning: The Command parameter "${name}" has "any" type`)
 }
 
 export function makeCommandDescriptionExpression(param: ParameterDeclaration): { description: ts.Expression } | {} {
-  const tags: readonly ts.JSDocParameterTag[] = ts.getJSDocParameterTags(param.compilerNode)
+  const tags = ts.getJSDocParameterTags(param.compilerNode)
   if(0 === tags.length) return {}
-  const tag: ts.JSDocParameterTag = tags[tags.length - 1]
-  const comment: string | undefined = tag.comment
+  const tag = tags[tags.length - 1]
+  const comment = tag.comment
   if(undefined === comment) return {}
-  const trimed: string = comment.trim()
-  const description: string = trimed.startsWith(`-`) ? trimed.replace(/^-/, '').trim() : trimed
-  return makeDescriptionNode(CommandControlledTag.Description, description)
+  const trimed = comment.trim()
+  const description = trimed.startsWith(`-`) ? trimed.replace(/^-/, '').trim() : trimed
+  return { description: ts.createStringLiteral(description) }
 }
 
 // #endregion
@@ -365,6 +287,37 @@ export function parseExprStmt(code: string): ts.Expression {
   return expr
 }
 
+function isEnumDeclaration(node: Node): node is EnumDeclaration {
+  return ts.SyntaxKind.EnumDeclaration === node.getKind()
+}
+
+function getEnumDeclarationFromType(type: Type): EnumDeclaration {
+  const symbol = type.getSymbol()
+  if(undefined === symbol) throw new Error(`No symbol found`)
+  const decl = symbol.getValueDeclaration()
+  if(undefined === decl) throw new Error(`No declaration found`)
+  if(!isEnumDeclaration(decl)) throw new Error(`The declaration not EnumDeclaration`)
+  return decl
+}
+
+function makeEnumMembersArrayNode(decl: EnumDeclaration): ts.ArrayLiteralExpression {
+  const nodes: ts.PropertyAccessExpression[] = []
+  const enumName = decl.getName()
+
+  decl.getMembers().forEach(member => {
+    const value = member.getValue()
+    if(undefined === value) throw new Error(`The member ${member.getText()} not has value`)
+    if(`string` !== typeof value) throw new TypeError(`The member ${member.getText()} value not string type`)
+    nodes.push(
+      ts.createPropertyAccess(
+        ts.createIdentifier(enumName),
+        ts.createIdentifier(member.getName())
+      )
+    )
+  })
+  return ts.createArrayLiteral(nodes, false)
+}
+
 export function getJSDoc(node: JSDocableNode): JSDoc | undefined {
   const jsdocs = node.getJsDocs()
   const len = jsdocs.length
@@ -400,10 +353,14 @@ export function stringifyJSDocTag(tag: JSDocTag): string {
   return tag.getText().replace(/^@/, '').trim()
 }
 
-function makeDescriptionNode(key: string, comment: string) {
-  return {
-    [key]: ts.createStringLiteral(comment)
-  }
+function makeDescriptionExpression(decl: JSDocableNode, override?: (comment: string) => string): CliDescriptionProperty | {} {
+  const jsdoc = getJSDoc(decl)
+  if(undefined === jsdoc) return {}
+  const comment = jsdoc.getComment()
+  if(undefined === comment) return {}
+  const trimed = comment.trim()
+  const str = `function` === typeof override ? override(trimed) : trimed
+  return { description: ts.createStringLiteral(str) }
 }
 
 export function makeUnsupportsTypeError(name: string, type: string): Error {

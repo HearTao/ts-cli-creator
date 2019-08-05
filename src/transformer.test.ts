@@ -1,8 +1,8 @@
 import * as vm from 'vm'
-import { Project, ts, SourceFile, printNode, FunctionDeclaration, ParameterDeclaration } from 'ts-morph'
-import { transformCommand, transformOption, makeUnsupportsTypeError, parseExprStmt, makeCommandTypeExpression, getJSDocTags, getJSDoc, getJSDocTag, makeCommandDescriptionExpression, makeCommandProperties } from './transformer'
-import { generateCallableChain } from './generate'
 import * as yargs from 'yargs'
+import { Project, ts, SourceFile, printNode, FunctionDeclaration, ParameterDeclaration } from 'ts-morph'
+import { transformCommand, transformOption, makeUnsupportsTypeError, parseExprStmt, makeCommandTypeExpression, getJSDocTags, getJSDoc, getJSDocTag, makeCommandDescriptionExpression, makeCommandProperties, getCommandDescription } from './transformer'
+import { generateCallableChain } from './render'
 
 
 describe(`transformCommand()`, () => {
@@ -36,7 +36,6 @@ describe(`transformCommand()`, () => {
     })
   })
 
-
   describe(`makeCommandDescriptionExpression()`, () => {
     test(`with description`, () => {
       const code = `/** @param {string} foo - desc for foo */function(foo) {}`
@@ -61,15 +60,15 @@ describe(`transformCommand()`, () => {
   })
 
   describe(`makeCommandProperties()`, () => {
-    test(`single param`, () => {
+    test(`single`, () => {
       const code = `\
 /** 
  * @param {string} foo - desc for foo 
  */
 function(foo) {}`
       const func = getFunctionDecl(code)
-      const actual = makeCommandProperties(func.getParameters())
-      expect(actual).toEqual([
+      const resolved = makeCommandProperties(func.getParameters())
+      expect(resolved).toEqual([
         {
           name: `foo`,
           properties: {
@@ -80,7 +79,7 @@ function(foo) {}`
       ])
     })
 
-    test(`multi params`, () => {
+    test(`multi`, () => {
       const code = `\
 /** 
  * @param {string} foo - desc for foo 
@@ -88,8 +87,8 @@ function(foo) {}`
  */
 function(foo, bar: number) {}`
       const func = getFunctionDecl(code)
-      const actual = makeCommandProperties(func.getParameters())
-      expect(actual).toEqual([
+      const resolved = makeCommandProperties(func.getParameters())
+      expect(resolved).toEqual([
         { 
           name: `foo`,
           properties: {
@@ -106,227 +105,263 @@ function(foo, bar: number) {}`
       ])
     })
   })
+
+  describe(`makeCommandDescription()`, () => {
+    test(`description`, () => {
+      const code = `/** desc */function(){}`
+      const resolved = getCommandDescription(getFunctionDecl(code))
+      expect(resolved).toEqual(ts.createStringLiteral(`desc`))
+    })
+
+    test(`no comment`, () => {
+      const code = `function(){}`
+      const resolved = getCommandDescription(getFunctionDecl(code))
+      expect(resolved).toEqual(ts.createStringLiteral(``))
+    })
+
+    test(`comment but no description`, () => {
+      const code = `/** @foo */function(){}`
+      const resolved = getCommandDescription(getFunctionDecl(code))
+      expect(resolved).toEqual(ts.createStringLiteral(``))
+    })
+  })
+
+  describe(`transformCommand()`, () => {
+    test(`simple`, () => {
+      const code = `function(){}`
+      const resolved = transformCommand(getFunctionDecl(code))
+      expect(resolved.description).toEqual(ts.createStringLiteral(''))
+      expect(resolved.positionals).toEqual([])
+      expect(resolved.options).toEqual([])
+    })
+  })
 })
 
-describe(`convert() types`, () => {
-  test(`string`, () => {
-    const code: string = `interface Options { foo: string }`
-    expect(printOption(code)).toMatchSnapshot()
+describe(`transformOptions()`, () => {
+  describe(`convert() types`, () => {
+    test(`string`, () => {
+      const code: string = `interface Options { foo: string }`
+      expect(printOption(code)).toMatchSnapshot()
+    })
+    
+    test(`number`, () => {
+      const code: string = `interface Options { foo: number }`
+      expect(printOption(code)).toMatchSnapshot()
+    })
+  
+    test(`boolean`, () => {
+      const code: string = `interface Options { foo: boolean }`
+      expect(printOption(code)).toMatchSnapshot()
+    })
+  
+    test(`string[]`, () => {
+      const code: string = `interface Options { foo: string[] }`
+      expect(printOption(code)).toMatchSnapshot()
+    })
+  
+    test(`Array<string>`, () => {
+      const code: string = `interface Options { foo: Array<string> }`
+      expect(printOption(code)).toMatchSnapshot()
+    })
+  
+    test(`number[]`, () => {
+      const code: string = `interface Options { foo: number[] }`
+      expect(printOption(code)).toMatchSnapshot()
+    })
+  
+    test(`Array<number>`, () => {
+      const code: string = `interface Options { foo: Array<number> }`
+      expect(printOption(code)).toMatchSnapshot()
+    })
+  
+    test(`boolean[]`, () => {
+      const code: string = `interface Options { foo: boolean[] }`
+      expect(printOption(code)).toMatchSnapshot()
+    })
+  
+    test(`Array<boolean>`, () => {
+      const code: string = `interface Options { foo: Array<boolean> }`
+      expect(printOption(code)).toMatchSnapshot()
+    })
+  
+    test(`enum`, () => {
+      const code: string = `\
+  enum E { A = 'a', B = 'b' }
+  interface Options { foo: E }
+  `
+      expect(printOption(code)).toMatchSnapshot()
+    })
+  
+    test(`mulit properties`, () => {
+      const code: string = `\
+  enum E { A = 'a', B = 'b' }
+  interface Options { foo: E, bar: string, baz: boolean[] }
+  `
+      expect(printOption(code)).toMatchSnapshot()
+    })
+  
+    test(`unsupports type error`, () => {
+      const code: string = `interface Options { foo: Date }`
+      expect(() => runOption(code)).toThrowError(makeUnsupportsTypeError(`option`, `Date`))
+    })
   })
   
-  test(`number`, () => {
-    const code: string = `interface Options { foo: number }`
-    expect(printOption(code)).toMatchSnapshot()
+  describe(`convert() yargs test`, () => {
+    test(`single option`, () => {
+      const code: string = `interface Options { foo: string }`
+      expect(
+        runYargs(code, '--foo bar')
+      ).toMatchObject({ foo: `bar` })
+    })
+  
+    test(`mulit options`, () => {
+      const code: string = `interface Options { foo: string, bar: number }`
+      expect(
+        runYargs(code, '--foo bar --bar 42')
+      ).toMatchObject({ foo: `bar`, bar: 42 })
+    })
+  
+    test(`enum option`, () => {
+      const code: string = `\
+  enum E { A = 'foo', B = 'bar' }
+  interface Options { e: E }`
+      expect(
+        runYargs(code, '--e foo', code => `\
+  var E;
+  (function (E) {
+      E["A"] = "foo";
+      E["B"] = "bar";
+  })(E || (E = {}));
+  
+  ${code}
+  `)
+      ).toMatchObject({ e: `foo` })
+    })
   })
-
-  test(`boolean`, () => {
-    const code: string = `interface Options { foo: boolean }`
-    expect(printOption(code)).toMatchSnapshot()
+  
+  describe(`alias option`, () => {
+    test(`@alias`, () => {
+      const code: string = `\
+  interface Options {
+    /**@alias f */
+    foo: string
+  }
+  `
+      expect(printOption(code)).toMatchSnapshot()
+    })
   })
-
-  test(`string[]`, () => {
-    const code: string = `interface Options { foo: string[] }`
-    expect(printOption(code)).toMatchSnapshot()
+  
+  describe(`default value`, () => {
+    test(`@default string`, () => {
+      const code: string = `\
+  interface Options {
+    /**@default "bar" */
+    foo: string
+  }
+  `
+      expect(printOption(code)).toMatchSnapshot()
+    })
+  
+    test(`@default number`, () => {
+      const code: string = `\
+  interface Options {
+    /**@default 42 */
+    foo: number
+  }
+  `
+      expect(printOption(code)).toMatchSnapshot()
+    })
+  
+    test(`@default boolean`, () => {
+      const code: string = `\
+  interface Options {
+    /**@default true */
+    foo: boolean
+  }
+  `
+      expect(printOption(code)).toMatchSnapshot()
+    })
+  
+    test(`@default string[]`, () => {
+      const code: string = `\
+  interface Options {
+    /**@default ["a", 'b'] */
+    foo: string[]
+  }
+  `
+      expect(printOption(code)).toMatchSnapshot()
+    })
+  
+    test(`@default number[]`, () => {
+      const code: string = `\
+  interface Options {
+    /**@default [1, 2, 3] */
+    foo: number[]
+  }
+  `
+      expect(printOption(code)).toMatchSnapshot()
+    })
+  
+    test(`@default boolean[]`, () => {
+      const code: string = `\
+  interface Options {
+    /**@default [true, false] */
+    foo: boolean[]
+  }
+  `
+      expect(printOption(code)).toMatchSnapshot()
+    })
+  
+    test(`@default enum`, () => {
+      const code: string = `\
+  enum E { A = 'a', B = 'b' }
+  interface Options {
+    /**@default E.A */
+    foo: E
+  }
+  `
+      expect(printOption(code)).toMatchSnapshot()
+    })
   })
-
-  test(`Array<string>`, () => {
-    const code: string = `interface Options { foo: Array<string> }`
-    expect(printOption(code)).toMatchSnapshot()
+  
+  describe(`description option`, () => {
+    test(`@description`, () => {
+      const code: string = `\
+  interface Options {
+    /** description */
+    foo: string
+  }
+  `
+      expect(printOption(code)).toMatchSnapshot()
+    })
   })
-
-  test(`number[]`, () => {
-    const code: string = `interface Options { foo: number[] }`
-    expect(printOption(code)).toMatchSnapshot()
-  })
-
-  test(`Array<number>`, () => {
-    const code: string = `interface Options { foo: Array<number> }`
-    expect(printOption(code)).toMatchSnapshot()
-  })
-
-  test(`boolean[]`, () => {
-    const code: string = `interface Options { foo: boolean[] }`
-    expect(printOption(code)).toMatchSnapshot()
-  })
-
-  test(`Array<boolean>`, () => {
-    const code: string = `interface Options { foo: Array<boolean> }`
-    expect(printOption(code)).toMatchSnapshot()
-  })
-
-  test(`enum`, () => {
-    const code: string = `\
-enum E { A = 'a', B = 'b' }
-interface Options { foo: E }
-`
-    expect(printOption(code)).toMatchSnapshot()
-  })
-
-  test(`mulit properties`, () => {
-    const code: string = `\
-enum E { A = 'a', B = 'b' }
-interface Options { foo: E, bar: string, baz: boolean[] }
-`
-    expect(printOption(code)).toMatchSnapshot()
-  })
-
-  test(`unsupports type error`, () => {
-    const code: string = `interface Options { foo: Date }`
-    expect(() => runOption(code)).toThrowError(makeUnsupportsTypeError(`option`, `Date`))
-  })
-})
-
-describe(`convert() yargs test`, () => {
-  test(`single option`, () => {
-    const code: string = `interface Options { foo: string }`
-    expect(
-      runYargs(code, '--foo bar')
-    ).toMatchObject({ foo: `bar` })
-  })
-
-  test(`mulit options`, () => {
-    const code: string = `interface Options { foo: string, bar: number }`
-    expect(
-      runYargs(code, '--foo bar --bar 42')
-    ).toMatchObject({ foo: `bar`, bar: 42 })
-  })
-
-  test(`enum option`, () => {
-    const code: string = `\
-enum E { A = 'foo', B = 'bar' }
-interface Options { e: E }`
-    expect(
-      runYargs(code, '--e foo', code => `\
-var E;
-(function (E) {
-    E["A"] = "foo";
-    E["B"] = "bar";
-})(E || (E = {}));
-
-${code}
-`)
-    ).toMatchObject({ e: `foo` })
-  })
-})
-
-describe(`alias option`, () => {
-  test(`@alias`, () => {
-    const code: string = `\
-interface Options {
-  /**@alias f */
-  foo: string
-}
-`
-    expect(printOption(code)).toMatchSnapshot()
-  })
-})
-
-describe(`default value`, () => {
-  test(`@default string`, () => {
-    const code: string = `\
-interface Options {
-  /**@default "bar" */
-  foo: string
-}
-`
-    expect(printOption(code)).toMatchSnapshot()
-  })
-
-  test(`@default number`, () => {
-    const code: string = `\
-interface Options {
-  /**@default 42 */
-  foo: number
-}
-`
-    expect(printOption(code)).toMatchSnapshot()
-  })
-
-  test(`@default boolean`, () => {
-    const code: string = `\
-interface Options {
-  /**@default true */
-  foo: boolean
-}
-`
-    expect(printOption(code)).toMatchSnapshot()
-  })
-
-  test(`@default string[]`, () => {
-    const code: string = `\
-interface Options {
-  /**@default ["a", 'b'] */
-  foo: string[]
-}
-`
-    expect(printOption(code)).toMatchSnapshot()
-  })
-
-  test(`@default number[]`, () => {
-    const code: string = `\
-interface Options {
-  /**@default [1, 2, 3] */
-  foo: number[]
-}
-`
-    expect(printOption(code)).toMatchSnapshot()
-  })
-
-  test(`@default boolean[]`, () => {
-    const code: string = `\
-interface Options {
-  /**@default [true, false] */
-  foo: boolean[]
-}
-`
-    expect(printOption(code)).toMatchSnapshot()
-  })
-
-  test(`@default enum`, () => {
-    const code: string = `\
-enum E { A = 'a', B = 'b' }
-interface Options {
-  /**@default E.A */
-  foo: E
-}
-`
-    expect(printOption(code)).toMatchSnapshot()
+  
+  describe(`demandOption option`, () => {
+    test(`@demandOption`, () => {
+      const code: string = `\
+  interface Options {
+    /**@demandOption */
+    foo: string
+  }
+  `
+      expect(printOption(code)).toMatchSnapshot()
+    })
+  
+    test(`@required`, () => {
+      const code: string = `\
+  interface Options {
+    /**@required */
+    foo: string
+  }
+  `
+      expect(printOption(code)).toMatchSnapshot()
+    })
   })
 })
 
-describe(`description option`, () => {
-  test(`@description`, () => {
-    const code: string = `\
-interface Options {
-  /** description */
-  foo: string
-}
-`
-    expect(printOption(code)).toMatchSnapshot()
-  })
-})
 
-describe(`demandOption option`, () => {
-  test(`@demandOption`, () => {
-    const code: string = `\
-interface Options {
-  /**@demandOption */
-  foo: string
-}
-`
-    expect(printOption(code)).toMatchSnapshot()
-  })
 
-  test(`@required`, () => {
-    const code: string = `\
-interface Options {
-  /**@required */
-  foo: string
-}
-`
-    expect(printOption(code)).toMatchSnapshot()
-  })
-})
+// #region helpers
 
 describe(`parseExprStmt()`, () => {
   test(`string`, () => {
@@ -350,9 +385,6 @@ describe(`parseExprStmt()`, () => {
     expect(result).toEqual(`E.A`)
   })
 })
-
-
-// #region helpers
 
 describe(`getJSDoc()`, () => {
   test(`undefined`, () => {
@@ -486,24 +518,6 @@ function getFunctionParameterDecl(code: string, index: number = 0): ParameterDec
   const decl = getFunctionDecl(code)
   const params = decl.getParameters()
   return params[index]
-}
-
-function runCommand(code: string): [ ts.CallExpression[], SourceFile ] {
-  const project = new Project({
-    skipFileDependencyResolution: true
-  })
-  const sourceFile = project.createSourceFile(`tmp.ts`, code)
-  return [ transformCommand(sourceFile.getFunctions()[0]).calls, sourceFile ]
-}
-
-export function printCommand(code: string): string {
-  const [ nodes ] = runCommand(code)
-  return nodes.map(node => printNode(node)).join('\n')
-}
-
-export function print(nodes: any): string {
-  const arr = Array.isArray(nodes) ? nodes : [ nodes ]
-  return arr.map(node => printNode(node)).join(`\n`)
 }
 
 function printOption(code: string): string {
