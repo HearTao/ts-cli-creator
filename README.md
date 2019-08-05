@@ -47,6 +47,8 @@ export default function main(): void {
             },
             args => {
                 const { _, $0, param, ...options } = args
+                if(undefined === param) 
+                    throw new Error(`Argument param was required`)
                 command(param, options)
             })
         .help()
