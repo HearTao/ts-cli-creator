@@ -112,7 +112,7 @@ Transform to:
 
 ### Generate options
 
-If command last param match `/options?/`, and type was interface declaration. **ts-cli** will generate a options see below: 
+when the command last param matched `/options?/`, and type was interface declaration. **ts-cli** will generate a options for you. see below: 
 
 #### 1. Transform interface properties to command options
 
