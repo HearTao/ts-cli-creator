@@ -62,3 +62,6 @@ typings/
 
 # Build directory
 dist
+
+# cli.ts
+src/cli.ts

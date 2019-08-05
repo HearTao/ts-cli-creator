@@ -6,20 +6,15 @@ export interface Options {
   output?: string
 }
 
-// const DEFAULT_OPTIONS: Options = {
-//   output: './cli.ts'
-// }
-
 export default async function main(entry: string, options: Options): Promise<void> {
   const { output = `./cli.ts` } = options
-  const entryPath: string = path.isAbsolute(entry) ? entry : path.resolve(entry)
-  const outPath: string = path.isAbsolute(output) 
+  const entryPath = path.isAbsolute(entry) ? entry : path.resolve(entry)
+  const outPath = path.isAbsolute(output) 
     ? output
     : path.resolve(path.dirname(entryPath), output)
   const content = fs.readFileSync(entryPath, `utf-8`)
-  generate(content, outPath)
+  generate(content, outPath, entryPath)
 }
-
 
 export { default as resolve, COMMAND_JSDOC_TAG } from './resolver'
 export { transformCommand, transformOption } from './transformer'

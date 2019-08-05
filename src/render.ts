@@ -6,9 +6,9 @@ const FUNCTION_NAME: string = `main`
 
 export interface RenderOptions {
   lib: string
-  strict: boolean,
-  help: boolean,
-  helpAlias: boolean,
+  strict: boolean
+  help: boolean
+  helpAlias: boolean
   version: boolean
 }
 
@@ -20,7 +20,7 @@ const DEFAULT_RENDER_OPTIONS: RenderOptions = {
   version: true
 }
 
-export default function render(result: TransformResult, options: Partial<RenderOptions> = {}): ts.Node[] {
+export default function render(result: TransformResult, filePath: string, options: Partial<RenderOptions> = {}): ts.Node[] {
   const { lib, strict, help, helpAlias, version } = { ...DEFAULT_RENDER_OPTIONS, ...options }
   const acc = []
 
@@ -40,15 +40,15 @@ export default function render(result: TransformResult, options: Partial<RenderO
     )
   )
 
-  return makeWrapper([ yargsNode ], lib)
+  return makeWrapper([ yargsNode ], filePath)
 }
 
 // #region wrapper
 
-export function makeWrapper(body: ts.Statement[] = [], lib: string = CLI_LIB_NAME): ts.Node[] {
+export function makeWrapper(body: ts.Statement[] = [], filePath: string): ts.Node[] {
   return [
-    makeLibImportDeclarationNode(lib, `yargs`),
-    makeCommandImportDeclarationNode(`command`, `./`),
+    makeLibImportDeclarationNode(`yargs`, `yargs`),
+    makeCommandImportDeclarationNode(`command`, filePath),
     makeWrapperFunctionDeclaration(body)
   ]
 }
@@ -177,82 +177,11 @@ function makeHandler(result: TransformResult): ts.ArrowFunction {
   positionals.forEach(([, call ]) => acc.push(call))
   options.forEach(call => acc.push(call))
 
-  const iden: ts.Identifier = ts.createIdentifier(`args`)
-
-  const deconstructNode =
-  ts.createVariableStatement(
-    undefined,
-    ts.createVariableDeclarationList(
-      [
-        ts.createVariableDeclaration(
-          ts.createObjectBindingPattern(
-            [
-              ts.createBindingElement(
-                undefined,
-                undefined,
-                ts.createIdentifier('_'),
-                undefined
-              ),
-              ts.createBindingElement(
-                undefined,
-                undefined,
-                ts.createIdentifier('$0'),
-                undefined
-              ),
-              ...makePositionalBindingNodes(),
-              ts.createBindingElement(
-                ts.createToken(ts.SyntaxKind.DotDotDotToken),
-                undefined,
-                ts.createIdentifier('options'),
-                undefined
-              )
-            ]
-          ),
-          undefined,
-          ts.createIdentifier('args')
-        )
-      ],
-      ts.NodeFlags.Const
-    )
-  )
-
-  const applyCommandNode =
-  ts.createExpressionStatement(
-    ts.createCall(
-      ts.createIdentifier('command'), 
-      undefined, 
-      [
-        ...makePositionalIdentifierNodes(),
-        ts.createIdentifier('options')
-      ]
-    )
-  )
-
-  const node = 
-  ts.createArrowFunction(
-    undefined,
-    undefined,
-    [
-      ts.createParameter(
-        undefined,
-        undefined,
-        undefined,
-        iden,
-        undefined,
-        undefined,
-        undefined
-      )
-    ],
-    undefined,
-    ts.createToken(ts.SyntaxKind.EqualsGreaterThanToken),
-    ts.createBlock(
-      [
-        deconstructNode,
-        applyCommandNode
-      ], 
-      false
-    )
-  )
+  return makeArrowFunctionNode(`args`, [
+    makeDeconstructNode(),
+    ...makePositionalUndefinedThrowIfNodes(),
+    makeCommandApplyNode()
+  ])
 
   function makePositionalBindingNodes(): ts.BindingElement[] {
     return positionals.map(([ name ]) => {
@@ -270,12 +199,102 @@ function makeHandler(result: TransformResult): ts.ArrowFunction {
       return ts.createIdentifier(name)
     })
   }
-  
-  return node
+
+  function makePositionalUndefinedThrowIfNodes(): ts.IfStatement[] {
+    return positionals.map(([ name ]) => {
+      return ts.createIf(
+        ts.createBinary(
+          ts.createIdentifier('undefined'),
+          ts.createToken(ts.SyntaxKind.EqualsEqualsEqualsToken),
+          ts.createIdentifier(name)
+        ),
+        ts.createThrow(
+          ts.createNew(ts.createIdentifier('TypeError'), undefined, [
+            ts.createStringLiteral(`${name} was required`)
+          ])
+        ),
+        undefined
+      )
+    })
+  }
+
+  function makeDeconstructNode(): ts.VariableStatement {
+    return ts.createVariableStatement(
+      undefined,
+      ts.createVariableDeclarationList(
+        [
+          ts.createVariableDeclaration(
+            ts.createObjectBindingPattern(
+              [
+                ts.createBindingElement(
+                  undefined,
+                  undefined,
+                  ts.createIdentifier('_'),
+                  undefined
+                ),
+                ts.createBindingElement(
+                  undefined,
+                  undefined,
+                  ts.createIdentifier('$0'),
+                  undefined
+                ),
+                ...makePositionalBindingNodes(),
+                ts.createBindingElement(
+                  ts.createToken(ts.SyntaxKind.DotDotDotToken),
+                  undefined,
+                  ts.createIdentifier('options'),
+                  undefined
+                )
+              ]
+            ),
+            undefined,
+            ts.createIdentifier('args')
+          )
+        ],
+        ts.NodeFlags.Const
+      )
+    )
+  }
+
+  function makeCommandApplyNode(): ts.ExpressionStatement {
+    return ts.createExpressionStatement(
+      ts.createCall(
+        ts.createIdentifier('command'), 
+        undefined, 
+        [
+          ...makePositionalIdentifierNodes(),
+          ts.createIdentifier('options')
+        ]
+      )
+    )
+  }
 }
 
-// #encregion
+export function makeArrowFunctionNode(iden: string, body: ts.Statement[]): ts.ArrowFunction {
+  return ts.createArrowFunction(
+    undefined,
+    undefined,
+    [
+      ts.createParameter(
+        undefined,
+        undefined,
+        undefined,
+        ts.createIdentifier(iden),
+        undefined,
+        undefined,
+        undefined
+      )
+    ],
+    undefined,
+    ts.createToken(ts.SyntaxKind.EqualsGreaterThanToken),
+    ts.createBlock(
+      body, 
+      false
+    )
+  )
+}
 
+// #endregion
 
 // #region helper
 
