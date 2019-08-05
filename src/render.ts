@@ -210,7 +210,7 @@ function makeHandler(result: TransformResult): ts.ArrowFunction {
         ),
         ts.createThrow(
           ts.createNew(ts.createIdentifier('TypeError'), undefined, [
-            ts.createStringLiteral(`${name} was required`)
+            ts.createStringLiteral(`Argument ${name} was required`)
           ])
         ),
         undefined

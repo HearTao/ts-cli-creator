@@ -22,26 +22,6 @@ type CliTypeProperties =
   | { type: ts.StringLiteral, array: ts.BooleanLiteral } 
   | { type: ts.StringLiteral, chooise: ts.ArrayLiteralExpression }
 
-type CliDescriptionProperty = { description: ts.StringLiteral }
-
-
-function makeTypeExpression(type: CliType): CliTypeProperties {
-  return { type: ts.createLiteral(type) }
-}
-
-function makeArrayTypeExpression(type: CliType): CliTypeProperties {
-  return {
-    ...makeTypeExpression(type),
-    array: ts.createTrue()
-  }
-}
-
-function makeEnumTypeExpression(type: CliType, nodes: ts.ArrayLiteralExpression): CliTypeProperties {
-  return {
-    ...makeTypeExpression(type),
-    chooise: nodes
-  }
-}
 
 // #region option
 
@@ -49,6 +29,7 @@ const enum CliOptionsJSDocTag {
   Alias = 'alias',
   Default = 'default',
   DemandOption = 'demandOption',
+  Require = 'require',
   Required = 'required'
 }
 
@@ -65,7 +46,7 @@ function makeOptionsProperties(decl: InterfaceDeclaration): TransformCallResult[
     
     const type = property.getType()
     const typeExpr = makeOptionsTypeExpression(type)
-    const descExpr = makeDescriptionExpression(decl)
+    const descExpr = makeOptionsDescriptionExpression(decl)
     const tagExpr = makeOptionJSDocTagExpression(decl)
 
     return { 
@@ -79,16 +60,16 @@ function makeOptionsProperties(decl: InterfaceDeclaration): TransformCallResult[
   })
 }
 
-function makeOptionsTypeExpression(type: Type): CliTypeProperties {
+export function makeOptionsTypeExpression(type: Type): CliTypeProperties {
   if(type.isString()) return makeTypeExpression(CliType.String)
   else if(type.isNumber()) return makeTypeExpression(CliType.Number)
   else if(type.isBoolean()) return makeTypeExpression(CliType.Boolean)
   else if(type.isArray()) {
     const elemType = type.getArrayElementType()
     if(undefined === elemType) throw new Error(`Unknown array element type`)
-    if(type.isString()) return makeArrayTypeExpression(CliType.String)
-    else if(type.isNumber()) return makeArrayTypeExpression(CliType.Number)
-    else if(type.isBoolean()) return makeArrayTypeExpression(CliType.Boolean)
+    if(elemType.isString()) return makeArrayTypeExpression(CliType.String)
+    else if(elemType.isNumber()) return makeArrayTypeExpression(CliType.Number)
+    else if(elemType.isBoolean()) return makeArrayTypeExpression(CliType.Boolean)
     else throw new Error(`Unsupports array element type ${elemType.getText()}`)
   }
   else if(type.isEnum()) {
@@ -99,7 +80,15 @@ function makeOptionsTypeExpression(type: Type): CliTypeProperties {
   else throw new TypeError(`Unsupportsed options type "${type.getText()}"`)
 }
 
-function makeOptionJSDocTagExpression(decl: JSDocableNode): { [key: string]: ts.Expression } {
+export function makeOptionsDescriptionExpression(decl: JSDocableNode): { description: ts.Expression } | {} {
+  const jsdoc = getJSDoc(decl)
+  if(undefined === jsdoc) return {}
+  const comment = jsdoc.getComment()
+  if(undefined === comment) return {}
+  return { description: ts.createStringLiteral(comment.trim()) }
+}
+
+export function makeOptionJSDocTagExpression(decl: JSDocableNode): { [key: string]: ts.Expression } {
   const jsdoc = getJSDoc(decl)
   if(undefined === jsdoc) return {}
   return jsdoc.getTags().reduce<{ [key: string]: ts.Expression }>((acc, tag) => {
@@ -120,6 +109,7 @@ function makeOptionJSDocTagExpression(decl: JSDocableNode): { [key: string]: ts.
       }
 
       case CliOptionsJSDocTag.DemandOption:
+      case CliOptionsJSDocTag.Require:
       case CliOptionsJSDocTag.Required: {
         acc[CliOptionsJSDocTag.DemandOption] = ts.createTrue()
         break
@@ -353,22 +343,30 @@ export function stringifyJSDocTag(tag: JSDocTag): string {
   return tag.getText().replace(/^@/, '').trim()
 }
 
-function makeDescriptionExpression(decl: JSDocableNode, override?: (comment: string) => string): CliDescriptionProperty | {} {
-  const jsdoc = getJSDoc(decl)
-  if(undefined === jsdoc) return {}
-  const comment = jsdoc.getComment()
-  if(undefined === comment) return {}
-  const trimed = comment.trim()
-  const str = `function` === typeof override ? override(trimed) : trimed
-  return { description: ts.createStringLiteral(str) }
-}
-
 export function makeUnsupportsTypeError(name: string, type: string): Error {
   return new Error(`Unsupports ${name} type "${type}"`)
 }
 
 export function makeUnknownYargsTypeError<T>(type: T): Error {
   return new Error(`Unknown yargs type "${type}"`)
+}
+
+function makeTypeExpression(type: CliType): CliTypeProperties {
+  return { type: ts.createLiteral(type) }
+}
+
+function makeArrayTypeExpression(type: CliType): CliTypeProperties {
+  return {
+    ...makeTypeExpression(type),
+    array: ts.createTrue()
+  }
+}
+
+function makeEnumTypeExpression(type: CliType, nodes: ts.ArrayLiteralExpression): CliTypeProperties {
+  return {
+    ...makeTypeExpression(type),
+    chooise: nodes
+  }
 }
 
 // #endregion

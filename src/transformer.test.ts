@@ -1,7 +1,7 @@
 import * as vm from 'vm'
 import * as yargs from 'yargs'
-import { Project, ts, SourceFile, printNode, FunctionDeclaration, ParameterDeclaration } from 'ts-morph'
-import { transformCommand, transformOption, makeUnsupportsTypeError, parseExprStmt, makeCommandTypeExpression, getJSDocTags, getJSDoc, getJSDocTag, makeCommandDescriptionExpression, makeCommandProperties, getCommandDescription } from './transformer'
+import { Project, ts, SourceFile, printNode, FunctionDeclaration, ParameterDeclaration, InterfaceDeclaration, PropertySignature } from 'ts-morph'
+import { transformCommand, transformOption, makeUnsupportsTypeError, parseExprStmt, makeCommandTypeExpression, getJSDocTags, getJSDoc, getJSDocTag, makeCommandDescriptionExpression, makeCommandProperties, getCommandDescription, makeOptionsTypeExpression, makeOptionsDescriptionExpression, makeOptionJSDocTagExpression } from './transformer'
 import { generateCallableChain } from './render'
 
 
@@ -10,29 +10,40 @@ describe(`transformCommand()`, () => {
     test(`string, number, boolean`, () => {
       const code: string = `function(foo: string) {}`
       const param: ParameterDeclaration = getFunctionParameterDecl(code)
-      const actual = makeCommandTypeExpression(param)
-      expect(actual).toEqual({ type: ts.createStringLiteral(`string`) })
+      const [resolved] = makeCommandTypeExpression(param)
+      expect(resolved).toEqual({ type: ts.createStringLiteral(`string`) })
     })
 
     test(`no type or any type`, () => {
       const code: string = `function(foo) {}`
       const param: ParameterDeclaration = getFunctionParameterDecl(code)
-      const actual = makeCommandTypeExpression(param)
-      expect(actual).toEqual({ type: ts.createStringLiteral(`string`) })
+      const [resolved] = makeCommandTypeExpression(param)
+      expect(resolved).toEqual({ type: ts.createStringLiteral(`string`) })
     })
 
-    test.skip(`enmu type`, () => {
+    test(`enmu type`, () => {
       const code: string = `enum E { A = 'a', B = 'b' }; function(foo: E) {}`
       const param: ParameterDeclaration = getFunctionParameterDecl(code)
-      const actual = makeCommandTypeExpression(param)
-      expect(actual).toEqual({ type: ts.createIdentifier(`E`), chooise: [ `a`, `b` ] })
+      const [resolved] = makeCommandTypeExpression(param)
+      expect(resolved).toEqual({ 
+        type: ts.createStringLiteral(`string`), 
+        chooise: ts.createArrayLiteral([
+          ts.createPropertyAccess(
+            ts.createIdentifier(`E`),
+            ts.createIdentifier(`A`)
+          ),
+          ts.createPropertyAccess(
+            ts.createIdentifier(`E`),
+            ts.createIdentifier(`B`)
+          )
+        ], false)
+      })
     })
 
     test(`unsupported type`, () => {
       const code: string = `function(foo: Date) {}`
       const param: ParameterDeclaration = getFunctionParameterDecl(code)
-      const actual = () => makeCommandTypeExpression(param)
-      expect(actual).toThrowError(makeUnsupportsTypeError(`positional`, `Date`))
+      expect(() => makeCommandTypeExpression(param)).toThrowError(makeUnsupportsTypeError(`positional`, `Date`))
     })
   })
 
@@ -138,223 +149,198 @@ function(foo, bar: number) {}`
 })
 
 describe(`transformOptions()`, () => {
-  describe(`convert() types`, () => {
+  describe(`makeOptionsTypeExpression()`, () => {
     test(`string`, () => {
-      const code: string = `interface Options { foo: string }`
-      expect(printOption(code)).toMatchSnapshot()
+      const code = `interface Options { foo: string }`
+      const prop = getInterfaceProperty(code)
+      const resolved = makeOptionsTypeExpression(prop.getType())
+      expect(resolved).toEqual({ type: ts.createStringLiteral(`string`) })
     })
     
     test(`number`, () => {
-      const code: string = `interface Options { foo: number }`
-      expect(printOption(code)).toMatchSnapshot()
+      const code = `interface Options { foo: number }`
+      const prop = getInterfaceProperty(code)
+      const resolved = makeOptionsTypeExpression(prop.getType())
+      expect(resolved).toEqual({ type: ts.createStringLiteral(`number`) })
     })
   
     test(`boolean`, () => {
-      const code: string = `interface Options { foo: boolean }`
-      expect(printOption(code)).toMatchSnapshot()
+      const code = `interface Options { foo: boolean }`
+      const prop = getInterfaceProperty(code)
+      const resolved = makeOptionsTypeExpression(prop.getType())
+      expect(resolved).toEqual({ type: ts.createStringLiteral(`boolean`) })
     })
   
     test(`string[]`, () => {
-      const code: string = `interface Options { foo: string[] }`
-      expect(printOption(code)).toMatchSnapshot()
+      const code = `interface Options { foo: string[] }`
+      const prop = getInterfaceProperty(code)
+      const resolved = makeOptionsTypeExpression(prop.getType())
+      expect(resolved).toEqual({ type: ts.createStringLiteral(`string`), array: ts.createTrue() })
     })
   
     test(`Array<string>`, () => {
-      const code: string = `interface Options { foo: Array<string> }`
-      expect(printOption(code)).toMatchSnapshot()
+      const code = `interface Options { foo: Array<string> }`
+      const prop = getInterfaceProperty(code)
+      const resolved = makeOptionsTypeExpression(prop.getType())
+      expect(resolved).toEqual({ type: ts.createStringLiteral(`string`), array: ts.createTrue() })
     })
-  
+
     test(`number[]`, () => {
-      const code: string = `interface Options { foo: number[] }`
-      expect(printOption(code)).toMatchSnapshot()
-    })
-  
-    test(`Array<number>`, () => {
-      const code: string = `interface Options { foo: Array<number> }`
-      expect(printOption(code)).toMatchSnapshot()
+      const code = `interface Options { foo: number[] }`
+      const prop = getInterfaceProperty(code)
+      const resolved = makeOptionsTypeExpression(prop.getType())
+      expect(resolved).toEqual({ type: ts.createStringLiteral(`number`), array: ts.createTrue() })
     })
   
     test(`boolean[]`, () => {
-      const code: string = `interface Options { foo: boolean[] }`
-      expect(printOption(code)).toMatchSnapshot()
-    })
-  
-    test(`Array<boolean>`, () => {
-      const code: string = `interface Options { foo: Array<boolean> }`
-      expect(printOption(code)).toMatchSnapshot()
+      const code = `interface Options { foo: boolean[] }`
+      const prop = getInterfaceProperty(code)
+      const resolved = makeOptionsTypeExpression(prop.getType())
+      expect(resolved).toEqual({ type: ts.createStringLiteral(`boolean`), array: ts.createTrue() })
     })
   
     test(`enum`, () => {
-      const code: string = `\
-  enum E { A = 'a', B = 'b' }
-  interface Options { foo: E }
-  `
-      expect(printOption(code)).toMatchSnapshot()
-    })
-  
-    test(`mulit properties`, () => {
-      const code: string = `\
-  enum E { A = 'a', B = 'b' }
-  interface Options { foo: E, bar: string, baz: boolean[] }
-  `
-      expect(printOption(code)).toMatchSnapshot()
+      const code = `enum E { A = 'a', B = 'b' }; interface Options { foo: E }`
+      const prop = getInterfaceProperty(code)
+      const resolved = makeOptionsTypeExpression(prop.getType())
+      expect(resolved).toEqual({ 
+        type: ts.createStringLiteral(`string`), 
+        chooise: ts.createArrayLiteral([
+          ts.createPropertyAccess(
+            ts.createIdentifier(`E`),
+            ts.createIdentifier(`A`)
+          ),
+          ts.createPropertyAccess(
+            ts.createIdentifier(`E`),
+            ts.createIdentifier(`B`)
+          )
+        ], false)
+      })
     })
   
     test(`unsupports type error`, () => {
       const code: string = `interface Options { foo: Date }`
-      expect(() => runOption(code)).toThrowError(makeUnsupportsTypeError(`option`, `Date`))
+      const prop = getInterfaceProperty(code)
+      expect(() => makeOptionsTypeExpression(prop.getType())).toThrow()
+    })
+
+    test(`unsupports array element type error`, () => {
+      const code: string = `interface Options { foo: Date[] }`
+      const prop = getInterfaceProperty(code)
+      expect(() => makeOptionsTypeExpression(prop.getType())).toThrow()
     })
   })
-  
-  describe(`convert() yargs test`, () => {
-    test(`single option`, () => {
+
+  describe(`makeOptionsDescriptionExpression()`, () => {
+    test(`desc`, () => {
+      const code: string = `interface Options { 
+/** desc */
+foo: string }`
+      const decl = getInterfaceProperty(code)
+      const resolved = makeOptionsDescriptionExpression(decl)
+      expect(resolved).toEqual({ description: ts.createStringLiteral(`desc`) })
+    })
+
+    test(`comment no desc`, () => {
+      const code: string = `interface Options { 
+/** */
+foo: string }`
+      const decl = getInterfaceProperty(code)
+      const resolved = makeOptionsDescriptionExpression(decl)
+      expect(resolved).toEqual({ })
+    })
+
+    test(`no comment`, () => {
       const code: string = `interface Options { foo: string }`
-      expect(
-        runYargs(code, '--foo bar')
-      ).toMatchObject({ foo: `bar` })
-    })
-  
-    test(`mulit options`, () => {
-      const code: string = `interface Options { foo: string, bar: number }`
-      expect(
-        runYargs(code, '--foo bar --bar 42')
-      ).toMatchObject({ foo: `bar`, bar: 42 })
-    })
-  
-    test(`enum option`, () => {
-      const code: string = `\
-  enum E { A = 'foo', B = 'bar' }
-  interface Options { e: E }`
-      expect(
-        runYargs(code, '--e foo', code => `\
-  var E;
-  (function (E) {
-      E["A"] = "foo";
-      E["B"] = "bar";
-  })(E || (E = {}));
-  
-  ${code}
-  `)
-      ).toMatchObject({ e: `foo` })
+      const decl = getInterfaceProperty(code)
+      const resolved = makeOptionsDescriptionExpression(decl)
+      expect(resolved).toEqual({ })
     })
   })
   
-  describe(`alias option`, () => {
-    test(`@alias`, () => {
-      const code: string = `\
-  interface Options {
-    /**@alias f */
-    foo: string
-  }
-  `
-      expect(printOption(code)).toMatchSnapshot()
+  // describe(`convert() yargs test`, () => {
+  //   test(`single option`, () => {
+  //     const code: string = `interface Options { foo: string }`
+  //     expect(
+  //       runYargs(code, '--foo bar')
+  //     ).toMatchObject({ foo: `bar` })
+  //   })
+  
+  //   test(`mulit options`, () => {
+  //     const code: string = `interface Options { foo: string, bar: number }`
+  //     expect(
+  //       runYargs(code, '--foo bar --bar 42')
+  //     ).toMatchObject({ foo: `bar`, bar: 42 })
+  //   })
+  
+  //   test(`enum option`, () => {
+  //     const code: string = `\
+  // enum E { A = 'foo', B = 'bar' }
+  // interface Options { e: E }`
+  //     expect(
+  //       runYargs(code, '--e foo', code => `\
+  // var E;
+  // (function (E) {
+  //     E["A"] = "foo";
+  //     E["B"] = "bar";
+  // })(E || (E = {}));
+  
+  // ${code}
+  // `)
+  //     ).toMatchObject({ e: `foo` })
+  //   })
+  // })
+  
+  describe(`makeOptionJSDocTagExpression()`, () => {
+    describe(`@alias`, () => {
+      test(`alias`, () => {
+        const code: string = `interface Options { 
+/**@alias f */
+foo: string }`
+        const decl = getInterfaceProperty(code)
+        const resolved = makeOptionJSDocTagExpression(decl)
+        expect(resolved).toEqual({ alias: ts.createStringLiteral(`f`) })
+      })
+    })
+
+    describe(`@default`, () => {
+      test(`string`, () => {
+        const code: string = `interface Options { 
+/**@default "bar" */
+foo: string }`
+        const decl = getInterfaceProperty(code)
+        const resolved = makeOptionJSDocTagExpression(decl)
+        expect(resolved).toEqual({ default: ts.createStringLiteral(`bar`) })
+      })
+
+      test(`number`, () => {
+        const code: string = `interface Options { 
+/**@default 42 */
+foo: number }`
+        const decl = getInterfaceProperty(code)
+        const resolved = makeOptionJSDocTagExpression(decl)
+        expect(resolved).toEqual({ default: ts.createNumericLiteral(`42`) })
+      })
     })
   })
-  
-  describe(`default value`, () => {
-    test(`@default string`, () => {
-      const code: string = `\
-  interface Options {
-    /**@default "bar" */
-    foo: string
-  }
-  `
-      expect(printOption(code)).toMatchSnapshot()
+
+  describe(`@demandOption, @require, @required`, () => {
+    test(`demandOption`, () => {
+      const code: string = `interface Options { 
+/**@demandOption */
+foo: string }`
+      const decl = getInterfaceProperty(code)
+      const resolved = makeOptionJSDocTagExpression(decl)
+      expect(resolved).toEqual({ demandOption: ts.createTrue() })
     })
-  
-    test(`@default number`, () => {
-      const code: string = `\
-  interface Options {
-    /**@default 42 */
-    foo: number
-  }
-  `
-      expect(printOption(code)).toMatchSnapshot()
-    })
-  
-    test(`@default boolean`, () => {
-      const code: string = `\
-  interface Options {
-    /**@default true */
-    foo: boolean
-  }
-  `
-      expect(printOption(code)).toMatchSnapshot()
-    })
-  
-    test(`@default string[]`, () => {
-      const code: string = `\
-  interface Options {
-    /**@default ["a", 'b'] */
-    foo: string[]
-  }
-  `
-      expect(printOption(code)).toMatchSnapshot()
-    })
-  
-    test(`@default number[]`, () => {
-      const code: string = `\
-  interface Options {
-    /**@default [1, 2, 3] */
-    foo: number[]
-  }
-  `
-      expect(printOption(code)).toMatchSnapshot()
-    })
-  
-    test(`@default boolean[]`, () => {
-      const code: string = `\
-  interface Options {
-    /**@default [true, false] */
-    foo: boolean[]
-  }
-  `
-      expect(printOption(code)).toMatchSnapshot()
-    })
-  
-    test(`@default enum`, () => {
-      const code: string = `\
-  enum E { A = 'a', B = 'b' }
-  interface Options {
-    /**@default E.A */
-    foo: E
-  }
-  `
-      expect(printOption(code)).toMatchSnapshot()
-    })
-  })
-  
-  describe(`description option`, () => {
-    test(`@description`, () => {
-      const code: string = `\
-  interface Options {
-    /** description */
-    foo: string
-  }
-  `
-      expect(printOption(code)).toMatchSnapshot()
-    })
-  })
-  
-  describe(`demandOption option`, () => {
-    test(`@demandOption`, () => {
-      const code: string = `\
-  interface Options {
-    /**@demandOption */
-    foo: string
-  }
-  `
-      expect(printOption(code)).toMatchSnapshot()
-    })
-  
-    test(`@required`, () => {
-      const code: string = `\
-  interface Options {
-    /**@required */
-    foo: string
-  }
-  `
-      expect(printOption(code)).toMatchSnapshot()
+
+    test(`require`, () => {
+      const code: string = `interface Options { 
+/**@required */
+foo: string }`
+      const decl = getInterfaceProperty(code)
+      const resolved = makeOptionJSDocTagExpression(decl)
+      expect(resolved).toEqual({ demandOption: ts.createTrue() })
     })
   })
 })
@@ -520,12 +506,21 @@ function getFunctionParameterDecl(code: string, index: number = 0): ParameterDec
   return params[index]
 }
 
-function printOption(code: string): string {
-  const [ nodes ] = runOption(code)
-  return nodes.map(node => printNode(node)).join('\n')
+function getInterfaceDecl(code: string): InterfaceDeclaration {
+  const project = new Project({
+    skipFileDependencyResolution: true
+  })
+  const sourceFile = project.createSourceFile(`tmp.ts`, code)
+  return sourceFile.getInterfaces()[0]
 }
 
-function runYargs(code: string, args: string = '', override?: (code: string) => string): yargs.Arguments {
+function getInterfaceProperty(code: string, index: number = 0): PropertySignature {
+  const decl = getInterfaceDecl(code)
+  const props = decl.getProperties()
+  return props[index]
+}
+
+export function runYargs(code: string, args: string = '', override?: (code: string) => string): yargs.Arguments {
   const out = vm.runInThisContext(makeCode(code, args))(require)
   console.log(out)
   return out
