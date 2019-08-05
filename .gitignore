@@ -59,3 +59,9 @@ typings/
 
 # next.js build output
 .next
+
+# Build directory
+dist
+
+# cli.ts
+src/cli.ts
