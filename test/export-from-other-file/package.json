@@ -11,6 +11,6 @@
 		"typescript": "latest"
 	},
 	"dependencies": {
-		"ts-cli": "file:../../"
+		"ts-cli": "file:../../dist"
 	}
 }
