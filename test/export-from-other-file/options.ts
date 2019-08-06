@@ -1,3 +1,3 @@
 export interface Options {
-  foo: string
+  bar: string | undefined
 }
