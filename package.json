@@ -1,7 +1,7 @@
 {
   "name": "ts-cli",
   "version": "0.0.1",
-  "description": "yet another cli generator based TypeScript code",
+  "description": "Yet another cli generator based TypeScript code",
   "main": "index.js",
   "scripts": {
     "start": "tsc -w",
@@ -9,15 +9,18 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/HairyRabbit/ts-cli.git"
+    "url": "git+https://github.com/HearTao/ts-cli.git"
   },
   "keywords": [],
-  "author": "HairyRabbit",
-  "license": "ISC",
+  "contributors": [
+    "Kingwl <kingwenlu@gmail.com>",
+    "HariyRabbit <yfhj1990@hotmail.com>"
+  ],
+  "license": "MIT",
   "bugs": {
-    "url": "https://github.com/HairyRabbit/ts-cli/issues"
+    "url": "https://github.com/HearTao/ts-cli/issues"
   },
-  "homepage": "https://github.com/HairyRabbit/ts-cli#readme",
+  "homepage": "https://github.com/HearTao/ts-cli#readme",
   "devDependencies": {
     "@types/jest": "^24.0.15",
     "@types/node": "^12.6.8",
