@@ -20,7 +20,7 @@ const enum CliType {
 type CliTypeProperties = 
   | { type: ts.StringLiteral }
   | { type: ts.StringLiteral, array: ts.BooleanLiteral } 
-  | { type: ts.StringLiteral, chooise: ts.ArrayLiteralExpression }
+  | { choices: ts.ArrayLiteralExpression }
 
 
 // #region option
@@ -38,7 +38,6 @@ export function transformOption(interfaceDecl: InterfaceDeclaration): ts.CallExp
   const props: TransformCallResult[] = makeOptionsProperties(interfaceDecl)
   return props.map(result => makeCallableNode(`option`, result))
 }
-
 
 function makeOptionsProperties(decl: InterfaceDeclaration): TransformCallResult[] {
   return decl.getProperties().map(property => {
@@ -201,6 +200,12 @@ export function makeCommandProperties(params: ParameterDeclaration[]): Transform
 export function makeCommandTypeExpression(param: ParameterDeclaration): [CliTypeProperties, string[] | undefined] {
   const name: string = param.getName()
   const type: Type = param.getType()
+  console.log(
+    type.compilerType.getSymbol()!.valueDeclaration!.kind,
+    type.isEnumLiteral(),
+    type.getText(),
+    type.getSymbol()!.getValueDeclaration()!.getParent()!.getText()
+  )
   if(type.isAny()) {
     reportPositionalAnyTypeWarning(name)
     return [makeTypeExpression(CliType.String), undefined]
@@ -208,6 +213,11 @@ export function makeCommandTypeExpression(param: ParameterDeclaration): [CliType
   else if(type.isString()) return [makeTypeExpression(CliType.String), undefined]
   else if(type.isNumber()) return [makeTypeExpression(CliType.Number), undefined]
   else if(type.isBoolean()) return [makeTypeExpression(CliType.Boolean), undefined]
+  else if(type.isEnumLiteral()) {
+    const decl = getEnumDeclarationFromEnumMemberType(type)
+    const nodes = makeEnumMembersArrayNode(decl)
+    return [makeEnumTypeExpression(CliType.String, nodes), undefined]
+  }
   else if(type.isEnum()) {
     const decl = getEnumDeclarationFromType(type)
     const nodes = makeEnumMembersArrayNode(decl)
@@ -290,6 +300,17 @@ function getEnumDeclarationFromType(type: Type): EnumDeclaration {
   return decl
 }
 
+function getEnumDeclarationFromEnumMemberType(type: Type): EnumDeclaration {
+  const symbol = type.getSymbol()
+  if(undefined === symbol) throw new Error(`No symbol found`)
+  const member = symbol.getValueDeclaration()
+  if(undefined === member) throw new Error(`No declaration found`)
+  const decl = member.getParent()
+  if(undefined === decl) throw new Error(`No declaration found`)
+  if(!isEnumDeclaration(decl)) throw new Error(`The declaration not EnumDeclaration`)
+  return decl
+}
+
 function makeEnumMembersArrayNode(decl: EnumDeclaration): ts.ArrayLiteralExpression {
   const nodes: ts.PropertyAccessExpression[] = []
   const enumName = decl.getName()
@@ -362,10 +383,9 @@ function makeArrayTypeExpression(type: CliType): CliTypeProperties {
   }
 }
 
-function makeEnumTypeExpression(type: CliType, nodes: ts.ArrayLiteralExpression): CliTypeProperties {
+function makeEnumTypeExpression(_type: CliType, nodes: ts.ArrayLiteralExpression): CliTypeProperties {
   return {
-    ...makeTypeExpression(type),
-    chooise: nodes
+    choices: nodes
   }
 }
 
