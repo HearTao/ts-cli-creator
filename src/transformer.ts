@@ -200,12 +200,6 @@ export function makeCommandProperties(params: ParameterDeclaration[]): Transform
 export function makeCommandTypeExpression(param: ParameterDeclaration): [CliTypeProperties, string[] | undefined] {
   const name: string = param.getName()
   const type: Type = param.getType()
-  console.log(
-    type.compilerType.getSymbol()!.valueDeclaration!.kind,
-    type.isEnumLiteral(),
-    type.getText(),
-    type.getSymbol()!.getValueDeclaration()!.getParent()!.getText()
-  )
   if(type.isAny()) {
     reportPositionalAnyTypeWarning(name)
     return [makeTypeExpression(CliType.String), undefined]
