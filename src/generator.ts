@@ -6,18 +6,16 @@ import { transformCommand } from './transformer'
 import render, { RenderOptions } from './render'
 import emit, { EmitOptions } from './emitter'
 
-const TEMPORARY_FILE_NAME: string = `__CLI__.ts`
-
 type Options = EmitOptions & RenderOptions
 
-export default function generate(code: string, outPath: string, entryPath: string, options: Partial<Options> = {}): void {
+export default function generate(outPath: string, entryPath: string, options: Partial<Options> = {}): void {
   const project = new Project()
-  const sourceFile = project.createSourceFile(TEMPORARY_FILE_NAME, code)
-  const functionDeclaration = resolve(sourceFile)
-  if(undefined === functionDeclaration) throw 42 /**@todo */
+  const outputSourceFile = project.createSourceFile(outPath, ``, { overwrite: true })
+  const entrySourceFile = project.addExistingSourceFile(entryPath)
+  const functionDeclaration = resolve(entrySourceFile)
+  if(undefined === functionDeclaration) throw 42 /**@todo sub commit */
   const result = transformCommand(functionDeclaration)
-  const filePath = getFilePath(outPath, entryPath)
-  const out = render(result, filePath)
+  const out = render(result, outputSourceFile, entrySourceFile)
   emit(outPath, print(out), options)
 }
 
@@ -27,7 +25,7 @@ export function print(nodes: ts.Node | ts.Node[], options: prettier.Options = {}
   return prettier.format(code, { parser: 'typescript', ...options })
 }
 
-export function getFilePath(outputPath: string, entryPath: string): string {
+export function getRelativeFilePath(outputPath: string, entryPath: string): string {
   if(!path.isAbsolute(outputPath) || !path.isAbsolute(entryPath)) throw makeNotAbsolutePathError()
   const outputDirPath = path.dirname(outputPath)
   const entryDirPath = path.dirname(entryPath)
@@ -36,7 +34,7 @@ export function getFilePath(outputPath: string, entryPath: string): string {
   const relativePath = path.relative(outputDirPath, entryDirPath).replace(/\\/g, '\/')
   const dotifyPath = '' === relativePath ? '.' : relativePath
   return dotifyPath + '/' + entryEraseIndexName
-} 
+}
 
 function makeNotAbsolutePathError(): Error {
   throw new Error(`The file path should be absolute path`)

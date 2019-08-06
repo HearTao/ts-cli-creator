@@ -1,6 +1,9 @@
-import { ts, JSDoc, JSDocTag, InterfaceDeclaration, JSDocableNode, Type, Node, EnumDeclaration, FunctionDeclaration, ParameterDeclaration } from 'ts-morph'
+import * as path from 'path'
+import { ts, JSDoc, JSDocTag, InterfaceDeclaration, JSDocableNode, Type, Node, EnumDeclaration, FunctionDeclaration, ParameterDeclaration, SourceFile } from 'ts-morph'
 
 export type TransformResult = {
+  name: string
+  ref: NodeSourceFileInfoMap,
   description: ts.StringLiteral
   positionals: [ string, ts.CallExpression ][],
   options: ts.CallExpression[]
@@ -16,6 +19,18 @@ const enum CliType {
   Number = 'number',
   Boolean = 'boolean',
 }
+
+export const enum DeclarationExportType { Named, Default }
+
+export type NodeSourceFileInfo = {
+  name: string,
+  node: Node,
+  type: DeclarationExportType
+  sourceFile: SourceFile
+}
+
+export type NodeSourceFileInfoMap = Map<SourceFile, { default: string[], named: string[] }>
+
 
 type CliTypeProperties = 
   | { type: ts.StringLiteral }
@@ -34,52 +49,78 @@ const enum CliOptionsJSDocTag {
 }
 
 
-export function transformOption(interfaceDecl: InterfaceDeclaration): ts.CallExpression[] {
-  const props: TransformCallResult[] = makeOptionsProperties(interfaceDecl)
-  return props.map(result => makeCallableNode(`option`, result))
+export function transformOption(interfaceDecl: InterfaceDeclaration): [ ts.CallExpression[], NodeSourceFileInfoMap ] {
+  const { results, ref } = makeOptionsProperties(interfaceDecl)
+  return [ 
+    results.map(result => makeCallableNode(`option`, result)),
+    ref
+  ]
 }
 
-function makeOptionsProperties(decl: InterfaceDeclaration): TransformCallResult[] {
-  return decl.getProperties().map(property => {
+function makeOptionsProperties(decl: InterfaceDeclaration): { results: TransformCallResult[], ref: NodeSourceFileInfoMap } {
+  return decl.getProperties().reduce<ReturnType<typeof makeOptionsProperties>>((acc, property) => {
     const name: string = property.getName()
     
     const type = property.getType()
-    const typeExpr = makeOptionsTypeExpression(type)
+    const [ typeExpr, info ] = makeOptionsTypeExpression(type)
     const descExpr = makeOptionsDescriptionExpression(decl)
     const tagExpr = makeOptionJSDocTagExpression(decl)
 
-    return { 
+    acc.results.push({ 
       name, 
       properties: { 
         ...typeExpr,
         ...descExpr,
         ...tagExpr
       } 
+    })
+
+    if(info) {
+      const { name, type, sourceFile } = info
+      let sf = acc.ref.get(sourceFile)
+      if(undefined === sf) {
+        sf = { default: [], named: [] }
+        acc.ref.set(sourceFile, sf)
+      }
+
+      switch(type) {
+        case DeclarationExportType.Default: sf.default.push(name); break;
+        case DeclarationExportType.Named: sf.named.push(name); break;
+        default: throw new Error(`Unknown declaration type`)
+      }
     }
-  })
+
+    return acc
+  }, { results: [], ref: new Map })
 }
 
-export function makeOptionsTypeExpression(type: Type): CliTypeProperties {
-  if(type.isString()) return makeTypeExpression(CliType.String)
-  else if(type.isNumber()) return makeTypeExpression(CliType.Number)
-  else if(type.isBoolean()) return makeTypeExpression(CliType.Boolean)
+export function makeOptionsTypeExpression(type: Type): [ CliTypeProperties, NodeSourceFileInfo | undefined ] {
+  if(type.isString()) return [ makeTypeExpression(CliType.String), undefined ]
+  else if(type.isNumber()) return [ makeTypeExpression(CliType.Number), undefined ]
+  else if(type.isBoolean()) return [ makeTypeExpression(CliType.Boolean), undefined ]
   else if(type.isArray()) {
     const elemType = type.getArrayElementType()
     if(undefined === elemType) throw new Error(`Unknown array element type`)
-    if(elemType.isString()) return makeArrayTypeExpression(CliType.String)
-    else if(elemType.isNumber()) return makeArrayTypeExpression(CliType.Number)
-    else if(elemType.isBoolean()) return makeArrayTypeExpression(CliType.Boolean)
+    if(elemType.isString()) return [ makeArrayTypeExpression(CliType.String), undefined ]
+    else if(elemType.isNumber()) return [ makeArrayTypeExpression(CliType.Number), undefined ]
+    else if(elemType.isBoolean()) return [ makeArrayTypeExpression(CliType.Boolean), undefined ]
     else throw new Error(`Unsupports array element type ${elemType.getText()}`)
   }
   else if(type.isEnum()) {
     const decl = getEnumDeclarationFromType(type)
     const nodes = makeEnumMembersArrayNode(decl)
-    return makeEnumTypeExpression(CliType.String, nodes)
+    return [ 
+      makeEnumTypeExpression(CliType.String, nodes),
+      makeNodeSourceFileInfo(decl.getName(), getDeclarationExportType(decl), decl)
+    ]
   }
   else if(type.isEnumLiteral()) {
     const decl = getEnumDeclarationFromEnumMemberType(type)
     const nodes = makeEnumMembersArrayNode(decl)
-    return makeEnumTypeExpression(CliType.String, nodes)
+    return [
+      makeEnumTypeExpression(CliType.String, nodes),
+      makeNodeSourceFileInfo(decl.getName(), getDeclarationExportType(decl), decl)
+    ]
   }
   else throw new TypeError(`Unsupportsed options type "${type.getText()}"`)
 }
@@ -137,11 +178,16 @@ export const COMMAND_POSITIONALS_JSDOCTAG_REGEXP: RegExp = /^(param|arg|argument
 
 export function transformCommand(decl: FunctionDeclaration): TransformResult {
   const [ positionalParams, optionParam ] = getParams(decl)
-  const positionals = makeCommandPositionals(positionalParams)
-  const options = optionParam ? transformOption(getOptionsInterfaceDecl(optionParam)) : []
+  const [ positionals, positionalRef ] = makeCommandPositionals(positionalParams)
+  if(optionParam) {}
+  const [ options, optionsRef ] = optionParam ? transformOption(getOptionsInterfaceDecl(optionParam)) : [[],new Map]
   const description = getCommandDescription(decl)
+  const name = getDeclarationDefaultName(decl)
+  const ref = makeModuleRefencesTable(name, decl, positionalRef, optionsRef)
 
   return {
+    name,
+    ref,
     description,
     positionals,
     options
@@ -158,7 +204,7 @@ export function getCommandDescription(decl: FunctionDeclaration): ts.StringLiter
 
 function getParams(decl: FunctionDeclaration, testRegExp: RegExp = COMMAND_OPTIONS_PARAMETER_REGEXP): [ ParameterDeclaration[], ParameterDeclaration | undefined ] {
   let optionParam: ParameterDeclaration | undefined
-  const params: ParameterDeclaration[] = decl.getParameters()
+  const params = decl.getParameters()
   const lstParam = params.pop()
   if(undefined === lstParam) return [ params, optionParam ]
   
@@ -170,7 +216,7 @@ function getParams(decl: FunctionDeclaration, testRegExp: RegExp = COMMAND_OPTIO
 }
 
 function getOptionsInterfaceDecl(param: ParameterDeclaration): InterfaceDeclaration {
-  const type: Type = param.getType()
+  const type = param.getType()
   if(undefined === type) throw makeUnsupportsTypeError(`options`, `No type found`)
   if(!type.isInterface()) throw makeUnsupportsTypeError(`options`, `Only Interface supports`)
   const symbol = type.getSymbol()
@@ -180,29 +226,51 @@ function getOptionsInterfaceDecl(param: ParameterDeclaration): InterfaceDeclarat
   return (decl[0] as InterfaceDeclaration)
 }
 
-function makeCommandPositionals(params: ParameterDeclaration[]): [ string, ts.CallExpression ][] {
-  return makeCommandProperties(params).map(result => ([ 
-    result.name,
-    makeCallableNode(COMMAND_POSITIONALS_NAME, result) 
-  ]))
+function makeCommandPositionals(params: ParameterDeclaration[]): [ [ string, ts.CallExpression ][], NodeSourceFileInfoMap ] {
+  const { results, ref } = makeCommandProperties(params)
+  return [ 
+    results.map(result => ([ 
+      result.name,
+      makeCallableNode(COMMAND_POSITIONALS_NAME, result) 
+    ])), 
+    ref 
+  ]
 }
 
-export function makeCommandProperties(params: ParameterDeclaration[]): TransformCallResult[] {
-  return params.map(param => {
+export function makeCommandProperties(params: ParameterDeclaration[]): { results: TransformCallResult[], ref: NodeSourceFileInfoMap } {
+  return params.reduce<ReturnType<typeof makeCommandProperties>>((acc, param) => {
     const name: string = param.getName()
-    const [ typeExpr ] = makeCommandTypeExpression(param)
+    const [ typeExpr, info ] = makeCommandTypeExpression(param)
     const descExpr = makeCommandDescriptionExpression(param)
-    return {
+
+    acc.results.push({
       name,
       properties: {
         ...typeExpr,
         ...descExpr
       }
+    })
+
+    if(info) {
+      const { name, type, sourceFile } = info
+      let sf = acc.ref.get(sourceFile)
+      if(undefined === sf) {
+        sf = { default: [], named: [] }
+        acc.ref.set(sourceFile, sf)
+      }
+
+      switch(type) {
+        case DeclarationExportType.Default: sf.default.push(name); break;
+        case DeclarationExportType.Named: sf.named.push(name); break;
+        default: throw new Error(`Unknown declaration type`)
+      }
     }
-  })
+
+    return acc
+  }, { results: [], ref: new Map })
 }
 
-export function makeCommandTypeExpression(param: ParameterDeclaration): [CliTypeProperties, string[] | undefined] {
+export function makeCommandTypeExpression(param: ParameterDeclaration): [ CliTypeProperties, NodeSourceFileInfo | undefined ] {
   const name: string = param.getName()
   const type: Type = param.getType()
   if(type.isAny()) {
@@ -214,13 +282,19 @@ export function makeCommandTypeExpression(param: ParameterDeclaration): [CliType
   else if(type.isBoolean()) return [makeTypeExpression(CliType.Boolean), undefined]
   else if(type.isEnumLiteral()) {
     const decl = getEnumDeclarationFromEnumMemberType(type)
-    const nodes = makeEnumMembersArrayNode(decl)
-    return [makeEnumTypeExpression(CliType.String, nodes), undefined]
+    const array = makeEnumMembersArrayNode(decl)
+    return [ 
+      makeEnumTypeExpression(CliType.String, array),
+      makeNodeSourceFileInfo(decl.getName(), getDeclarationExportType(decl), decl)
+    ]
   }
   else if(type.isEnum()) {
     const decl = getEnumDeclarationFromType(type)
-    const nodes = makeEnumMembersArrayNode(decl)
-    return [makeEnumTypeExpression(CliType.String, nodes), undefined]
+    const array = makeEnumMembersArrayNode(decl)
+    return [
+      makeEnumTypeExpression(CliType.String, array), 
+      makeNodeSourceFileInfo(decl.getName(), getDeclarationExportType(decl), decl) 
+    ]
   }
   else throw makeUnsupportsTypeError(COMMAND_POSITIONALS_NAME, type.getText())
 }
@@ -238,6 +312,62 @@ export function makeCommandDescriptionExpression(param: ParameterDeclaration): {
   const trimed = comment.trim()
   const description = trimed.startsWith(`-`) ? trimed.replace(/^-/, '').trim() : trimed
   return { description: ts.createStringLiteral(description) }
+}
+
+function makeModuleRefencesTable(name: string, decl: FunctionDeclaration, ...refs: NodeSourceFileInfoMap[]): NodeSourceFileInfoMap {
+  const ref: NodeSourceFileInfoMap = new Map()
+  const commandSourceFile = decl.getSourceFile()
+  ref.set(commandSourceFile, { default: [ name ], named: [] })
+  
+  const nameTable: Map<string, SourceFile[]> = new Map
+  nameTable.set(name, [ commandSourceFile ])
+
+  refs.forEach(ref => mergeRef(ref))
+  reportNameConflict()
+  return ref
+
+  function reportNameConflict() {
+    nameTable.forEach((sourceFiles, name) => {
+      if(sourceFiles.length > 1) throw new Error(`\
+  ${name} both exported from:
+  ${sourceFiles.map(sourceFile => `  - ` + sourceFile.getFilePath()).join('\n')}
+  `)
+    })
+  }
+
+  function mergeRef(target: NodeSourceFileInfoMap) {
+    target.forEach((value, sourceFile) => {
+      let sf = ref.get(sourceFile)
+      if(undefined === sf) {
+        sf = { default: [], named: [] }
+        ref.set(sourceFile, sf)
+      }
+
+      margeRefExport(sf, value, sourceFile)
+    })
+  }
+
+  type MapValue = { default: string[], named: string[] }
+
+  function margeRefExport(target: MapValue, value: MapValue, sourceFile: SourceFile) {
+    value.default.forEach(name => {
+      target.default.push(name)
+      pushToNameTable(name, sourceFile)
+    })
+    value.named.forEach(name => {
+      target.named.push(name)
+      pushToNameTable(name, sourceFile)
+    })
+  }
+
+  function pushToNameTable(name: string, sourceFile: SourceFile) {
+    let tb = nameTable.get(name)
+    if(undefined === tb) {
+      tb = []
+      nameTable.set(name, tb)
+    }
+    tb.push(sourceFile)
+  }
 }
 
 // #endregion
@@ -271,6 +401,24 @@ function makePropsNode(props: { [key: string]: ts.Expression }): ts.ObjectLitera
   }
 
   return ts.createObjectLiteral(objects, false)
+}
+
+function makeNodeSourceFileInfo(name: string, type: DeclarationExportType, node: Node): NodeSourceFileInfo {
+  return { name, node, type, sourceFile: node.getSourceFile() }
+}
+
+function getDeclarationDefaultName(decl: FunctionDeclaration): string {
+  const name = decl.getName()
+  if(undefined !== name) return name
+  const sourceFile = decl.getSourceFile()
+  const baseName = sourceFile.getBaseName()
+  return path.basename(baseName, path.extname(baseName))
+}
+
+function getDeclarationExportType(decl: EnumDeclaration): DeclarationExportType {
+  if(decl.isDefaultExport()) return DeclarationExportType.Default
+  else if(decl.isExported()) return DeclarationExportType.Named
+  else throw new Error(`The declaration "${decl.getName()}" not exported`)
 }
 
 export function parseExprStmt(code: string): ts.Expression {

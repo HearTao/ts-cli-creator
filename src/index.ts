@@ -1,19 +1,19 @@
-import * as fs  from 'fs'
 import * as path from 'path'
 import generate from './generator'
+
+export enum E { A = 'a' }
 
 export interface Options {
   output?: string
 }
 
-export default async function main(entry: string, options: Options): Promise<void> {
+export default async function main(entry: string, _e: E, options: Options): Promise<void> {
   const { output = `./cli.ts` } = options
   const entryPath = path.isAbsolute(entry) ? entry : path.resolve(entry)
   const outPath = path.isAbsolute(output) 
     ? output
     : path.resolve(path.dirname(entryPath), output)
-  const content = fs.readFileSync(entryPath, `utf-8`)
-  generate(content, outPath, entryPath)
+  generate(outPath, entryPath)
 }
 
 export { default as resolve, COMMAND_JSDOC_TAG } from './resolver'

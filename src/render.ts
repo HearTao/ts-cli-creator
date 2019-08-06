@@ -1,8 +1,8 @@
-import { ts } from 'ts-morph'
-import { TransformResult } from './transformer'
+import { ts, SourceFile } from 'ts-morph'
+import { TransformResult, NodeSourceFileInfoMap } from './transformer'
 
 const CLI_LIB_NAME: string = `yargs`
-const FUNCTION_NAME: string = `main`
+const FUNCTION_NAME: string = `cli`
 
 export interface RenderOptions {
   lib: string
@@ -20,7 +20,7 @@ const DEFAULT_RENDER_OPTIONS: RenderOptions = {
   version: true
 }
 
-export default function render(result: TransformResult, filePath: string, options: Partial<RenderOptions> = {}): ts.Node[] {
+export default function render(result: TransformResult, outputSourceFile: SourceFile, entrySourceFile: SourceFile, options: Partial<RenderOptions> = {}): ts.Node[] {
   const { lib, strict, help, helpAlias, version } = { ...DEFAULT_RENDER_OPTIONS, ...options }
   const acc = []
 
@@ -39,16 +39,16 @@ export default function render(result: TransformResult, filePath: string, option
       ts.createIdentifier(`argv`)
     )
   )
-
-  return makeWrapper([ yargsNode ], filePath)
+  
+  return makeWrapper([ yargsNode ], outputSourceFile, entrySourceFile, result.ref)
 }
 
 // #region wrapper
 
-export function makeWrapper(body: ts.Statement[] = [], filePath: string): ts.Node[] {
+export function makeWrapper(body: ts.Statement[] = [], outputSourceFile: SourceFile, _entrySourceFile: SourceFile, ref: NodeSourceFileInfoMap): ts.Node[] {
   return [
     makeLibImportDeclarationNode(`yargs`, `yargs`),
-    makeCommandImportDeclarationNode(`command`, filePath),
+    ...makeRefImportDeclarationNode(outputSourceFile, ref),
     makeWrapperFunctionDeclaration(body)
   ]
 }
@@ -67,7 +67,9 @@ export function makeLibImportDeclarationNode(exporter: string, path: string): ts
   )
 }
 
-export function makeCommandImportDeclarationNode(exporter: string, path: string, namedExporter: string[] = []): ts.ImportDeclaration {
+export function makeCommandImportDeclarationNode(exporter: string, outputSourceFile: SourceFile, entrySourceFile: SourceFile, namedExporter: string[] = []): ts.ImportDeclaration {
+  const filePath = outputSourceFile.getRelativePathAsModuleSpecifierTo(entrySourceFile)
+
   return ts.createImportDeclaration(
     undefined,
     undefined,
@@ -85,8 +87,35 @@ export function makeCommandImportDeclarationNode(exporter: string, path: string,
       )
 
     ),
-    ts.createStringLiteral(path)
+    ts.createStringLiteral(filePath)
   )
+}
+
+function makeRefImportDeclarationNode(outputSourceFile: SourceFile, ref: NodeSourceFileInfoMap): ts.ImportDeclaration[] {
+  const acc: ReturnType<typeof makeRefImportDeclarationNode> = []
+  ref.forEach(({ default: def, named }, sourceFile) => {
+    const filePath = outputSourceFile.getRelativePathAsModuleSpecifierTo(sourceFile)
+    acc.push(
+      ts.createImportDeclaration(
+        undefined,
+        undefined,
+        ts.createImportClause(
+          0 === def.length ? undefined : ts.createIdentifier(def[0]),
+          ts.createNamedImports(
+            named.map(name => {
+              return ts.createImportSpecifier(
+                undefined,
+                ts.createIdentifier(name)
+              )
+            })
+          )
+    
+        ),
+        ts.createStringLiteral(filePath)
+      )
+    )
+  })
+  return acc
 }
 
 export function makeWrapperFunctionDeclaration(body: ts.Statement[] = [], name: string = FUNCTION_NAME): ts.FunctionDeclaration {
@@ -259,7 +288,7 @@ function makeHandler(result: TransformResult): ts.ArrowFunction {
   function makeCommandApplyNode(): ts.ExpressionStatement {
     return ts.createExpressionStatement(
       ts.createCall(
-        ts.createIdentifier('command'), 
+        ts.createIdentifier(result.name), 
         undefined, 
         [
           ...makePositionalIdentifierNodes(),
