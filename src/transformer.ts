@@ -76,6 +76,11 @@ export function makeOptionsTypeExpression(type: Type): CliTypeProperties {
     const nodes = makeEnumMembersArrayNode(decl)
     return makeEnumTypeExpression(CliType.String, nodes)
   }
+  else if(type.isEnumLiteral()) {
+    const decl = getEnumDeclarationFromEnumMemberType(type)
+    const nodes = makeEnumMembersArrayNode(decl)
+    return makeEnumTypeExpression(CliType.String, nodes)
+  }
   else throw new TypeError(`Unsupportsed options type "${type.getText()}"`)
 }
 

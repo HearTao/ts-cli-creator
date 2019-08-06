@@ -26,8 +26,7 @@ describe(`transformCommand()`, () => {
       const param: ParameterDeclaration = getFunctionParameterDecl(code)
       const [resolved] = makeCommandTypeExpression(param)
       expect(resolved).toEqual({ 
-        type: ts.createStringLiteral(`string`), 
-        chooise: ts.createArrayLiteral([
+        choices: ts.createArrayLiteral([
           ts.createPropertyAccess(
             ts.createIdentifier(`E`),
             ts.createIdentifier(`A`)
@@ -35,6 +34,20 @@ describe(`transformCommand()`, () => {
           ts.createPropertyAccess(
             ts.createIdentifier(`E`),
             ts.createIdentifier(`B`)
+          )
+        ], false)
+      })
+    })
+
+    test(`enmu type, but only one member`, () => {
+      const code: string = `enum E { A = 'a' }; function(foo: E) {}`
+      const param: ParameterDeclaration = getFunctionParameterDecl(code)
+      const [resolved] = makeCommandTypeExpression(param)
+      expect(resolved).toEqual({ 
+        choices: ts.createArrayLiteral([
+          ts.createPropertyAccess(
+            ts.createIdentifier(`E`),
+            ts.createIdentifier(`A`)
           )
         ], false)
       })
@@ -204,8 +217,7 @@ describe(`transformOptions()`, () => {
       const prop = getInterfaceProperty(code)
       const resolved = makeOptionsTypeExpression(prop.getType())
       expect(resolved).toEqual({ 
-        type: ts.createStringLiteral(`string`), 
-        chooise: ts.createArrayLiteral([
+        choices: ts.createArrayLiteral([
           ts.createPropertyAccess(
             ts.createIdentifier(`E`),
             ts.createIdentifier(`A`)
@@ -213,6 +225,20 @@ describe(`transformOptions()`, () => {
           ts.createPropertyAccess(
             ts.createIdentifier(`E`),
             ts.createIdentifier(`B`)
+          )
+        ], false)
+      })
+    })
+
+    test(`enum, only one member`, () => {
+      const code = `enum E { A = 'a' }; interface Options { foo: E }`
+      const prop = getInterfaceProperty(code)
+      const resolved = makeOptionsTypeExpression(prop.getType())
+      expect(resolved).toEqual({ 
+        choices: ts.createArrayLiteral([
+          ts.createPropertyAccess(
+            ts.createIdentifier(`E`),
+            ts.createIdentifier(`A`)
           )
         ], false)
       })
