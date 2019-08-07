@@ -109,7 +109,7 @@ describe(`transformCommand()`, () => {
 function(foo) {}`
       const func = getFunctionDecl(code)
       const resolved = makeCommandProperties(func.getParameters())
-      expect(resolved).toEqual([
+      expect(resolved.results).toEqual([
         {
           name: `foo`,
           properties: {
@@ -118,6 +118,7 @@ function(foo) {}`
           }
         }
       ])
+      expect(resolved.ref).toEqual(new Map)
     })
 
     test(`multi`, () => {
@@ -129,7 +130,7 @@ function(foo) {}`
 function(foo, bar: number) {}`
       const func = getFunctionDecl(code)
       const resolved = makeCommandProperties(func.getParameters())
-      expect(resolved).toEqual([
+      expect(resolved.results).toEqual([
         { 
           name: `foo`,
           properties: {
@@ -144,6 +145,7 @@ function(foo, bar: number) {}`
           }
         }
       ])
+      expect(resolved.ref).toEqual(new Map)
     })
   })
 
@@ -169,11 +171,29 @@ function(foo, bar: number) {}`
 
   describe(`transformCommand()`, () => {
     test(`simple`, () => {
-      const code = `function(){}`
-      const resolved = transformCommand(getFunctionDecl(code))
+      const code = `export default function foo(){}`
+      const node = getFunctionDecl(code)
+      const resolved = transformCommand(node)
+      expect(resolved.name).toBe(`foo`)
       expect(resolved.description).toEqual(ts.createStringLiteral(''))
       expect(resolved.positionals).toEqual([])
       expect(resolved.options).toEqual([])
+      expect(resolved.ref).toEqual(new Map([[ 
+        node.getSourceFile(), { 
+        default: [{
+          name: `foo`,
+          type: DeclarationExportType.Default,
+          node,
+          sourceFile: node.getSourceFile()
+        }], named: [] } 
+      ]]))
+    })
+
+    test(`ref name conflict`, () => {
+      const code = `\
+export enum E { A = 'a' }; function E(foo: E){}`
+      const node = getFunctionDecl(code)
+      expect(() => transformCommand(node)).toThrow()
     })
   })
 })
@@ -183,56 +203,63 @@ describe(`transformOptions()`, () => {
     test(`string`, () => {
       const code = `interface Options { foo: string }`
       const prop = getInterfaceProperty(code)
-      const resolved = makeOptionsTypeExpression(prop.getType())
+      const [resolved, ref] = makeOptionsTypeExpression(prop.getType())
       expect(resolved).toEqual({ type: ts.createStringLiteral(`string`) })
+      expect(ref).toBeUndefined()
     })
     
     test(`number`, () => {
       const code = `interface Options { foo: number }`
       const prop = getInterfaceProperty(code)
-      const resolved = makeOptionsTypeExpression(prop.getType())
+      const [resolved, ref] = makeOptionsTypeExpression(prop.getType())
       expect(resolved).toEqual({ type: ts.createStringLiteral(`number`) })
+      expect(ref).toBeUndefined()
     })
   
     test(`boolean`, () => {
       const code = `interface Options { foo: boolean }`
       const prop = getInterfaceProperty(code)
-      const resolved = makeOptionsTypeExpression(prop.getType())
+      const [resolved, ref] = makeOptionsTypeExpression(prop.getType())
       expect(resolved).toEqual({ type: ts.createStringLiteral(`boolean`) })
+      expect(ref).toBeUndefined()
     })
   
     test(`string[]`, () => {
       const code = `interface Options { foo: string[] }`
       const prop = getInterfaceProperty(code)
-      const resolved = makeOptionsTypeExpression(prop.getType())
+      const [resolved, ref] = makeOptionsTypeExpression(prop.getType())
       expect(resolved).toEqual({ type: ts.createStringLiteral(`string`), array: ts.createTrue() })
+      expect(ref).toBeUndefined()
     })
   
     test(`Array<string>`, () => {
       const code = `interface Options { foo: Array<string> }`
       const prop = getInterfaceProperty(code)
-      const resolved = makeOptionsTypeExpression(prop.getType())
+      const [resolved, ref] = makeOptionsTypeExpression(prop.getType())
       expect(resolved).toEqual({ type: ts.createStringLiteral(`string`), array: ts.createTrue() })
+      expect(ref).toBeUndefined()
     })
 
     test(`number[]`, () => {
       const code = `interface Options { foo: number[] }`
       const prop = getInterfaceProperty(code)
-      const resolved = makeOptionsTypeExpression(prop.getType())
+      const [resolved, ref] = makeOptionsTypeExpression(prop.getType())
       expect(resolved).toEqual({ type: ts.createStringLiteral(`number`), array: ts.createTrue() })
+      expect(ref).toBeUndefined()
     })
   
     test(`boolean[]`, () => {
       const code = `interface Options { foo: boolean[] }`
       const prop = getInterfaceProperty(code)
-      const resolved = makeOptionsTypeExpression(prop.getType())
+      const [resolved, ref] = makeOptionsTypeExpression(prop.getType())
       expect(resolved).toEqual({ type: ts.createStringLiteral(`boolean`), array: ts.createTrue() })
+      expect(ref).toBeUndefined()
     })
   
     test(`enum`, () => {
-      const code = `enum E { A = 'a', B = 'b' }; interface Options { foo: E }`
+      const code = `export enum E { A = 'a', B = 'b' }; interface Options { foo: E }`
       const prop = getInterfaceProperty(code)
-      const resolved = makeOptionsTypeExpression(prop.getType())
+      const [resolved, ref] = makeOptionsTypeExpression(prop.getType())
       expect(resolved).toEqual({ 
         choices: ts.createArrayLiteral([
           ts.createPropertyAccess(
@@ -245,12 +272,19 @@ describe(`transformOptions()`, () => {
           )
         ], false)
       })
+      const node = prop.getType().getSymbol()!.getValueDeclaration()
+      expect(ref).toEqual({
+        name: `E`,
+        type: DeclarationExportType.Named,
+        node,
+        sourceFile: node!.getSourceFile()
+      })
     })
 
     test(`enum, only one member`, () => {
-      const code = `enum E { A = 'a' }; interface Options { foo: E }`
+      const code = `export enum E { A = 'a' }; interface Options { foo: E }`
       const prop = getInterfaceProperty(code)
-      const resolved = makeOptionsTypeExpression(prop.getType())
+      const [resolved, ref] = makeOptionsTypeExpression(prop.getType())
       expect(resolved).toEqual({ 
         choices: ts.createArrayLiteral([
           ts.createPropertyAccess(
@@ -258,6 +292,13 @@ describe(`transformOptions()`, () => {
             ts.createIdentifier(`A`)
           )
         ], false)
+      })
+      const node = prop.getType().getSymbol()!.getValueDeclaration()!.getParent()
+      expect(ref).toEqual({
+        name: `E`,
+        type: DeclarationExportType.Named,
+        node,
+        sourceFile: node!.getSourceFile()
       })
     })
   
