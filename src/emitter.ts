@@ -1,47 +1,63 @@
 import * as fs from 'fs'
-import * as path from 'path'
 import * as prompts from 'prompts'
+import { highlight } from 'cardinal'
+import { defaults } from 'lodash'
+
 
 interface WriteProcess {
-  (path: string, content: string): void
+  (path: string, content: string, options: EmitOptions): void | Promise<void>
 }
 
-export interface EmitOptions {
-  cwd: string
-  dryrun: boolean
-  silent: boolean
-  force: boolean
-  writer: WriteProcess | null
-}
-
-export const DEFAULT_EMITOPTIONS: EmitOptions = {
-  cwd: process.cwd(),
-  dryrun: false,
-  silent: false,
-  force: false,
-  writer: null
-}
-
-export default async function emit(filePath: string, content: string, options: Partial<EmitOptions> = {}): Promise<void> {
-  const { cwd, dryrun, silent, force, writer } = { ...DEFAULT_EMITOPTIONS, ...options }
-  const fileAbsolutePath: string = path.isAbsolute(filePath) ? filePath : path.resolve(cwd, filePath)
-  
-  if(fs.existsSync(fileAbsolutePath) && false === force) {
-    if(force) {
+async function writeFS(filePath: string, content: string, options: EmitOptions): Promise<void> {
+  if(fs.existsSync(filePath)) {
+    if(options.force) {
       reportForceRunWarning()
     } else {
       const answer: boolean = await askForOverrideFileContent()
-      if(false === answer) return !silent ? reportCanceled() : void 0
+      if(false === answer) return reportCanceled()
     }
   }
 
-  const proc: WriteProcess = writer || (dryrun ? DEFAULT_WRITTER.log : DEFAULT_WRITTER.fs)
-  try {
-    proc(filePath, content)
-    if(!silent) reportSuccessful(filePath)
-  } catch(e) {
-    if(!silent) reportFailed(filePath, e)
-  }
+  fs.writeFileSync(filePath, content, `utf-8`)
+  reportSuccessful(filePath)
+}
+
+function writeLog(_path: string, content: string, options: EmitOptions): void {
+  if(options.verbose) reportSummary(options)
+  console.log(options.color ? highlight(content) : content)
+}
+
+export const enum Writter { FS = 'fs', Log = 'log' }
+
+export const DEFAULT_WRITTER: { [K in Writter]: WriteProcess } = {
+  [Writter.FS]: writeFS,
+  [Writter.Log]: writeLog
+}
+
+export interface EmitOptions {
+  verbose: boolean
+  force: boolean
+  writer: WriteProcess
+  color: boolean
+  json: boolean
+  from: string
+  to: string
+}
+
+export const DEFAULT_EMITOPTIONS: EmitOptions = {
+  verbose: false,
+  force: false,
+  writer: DEFAULT_WRITTER.log,
+  color: true,
+  json: false,
+  from: `STDIN`,
+  to: `STDOUT`
+}
+
+export default async function emit(filePath: string, content: string, options: Partial<EmitOptions> = {}): Promise<void> {
+  const opts = defaults(options, DEFAULT_EMITOPTIONS)
+  const data = options.json ? makeJsonData(content, opts) : content
+  await opts.writer(filePath, data, opts)
 }
 
 async function askForOverrideFileContent(): Promise<boolean> {
@@ -54,34 +70,29 @@ async function askForOverrideFileContent(): Promise<boolean> {
 }
 
 function reportCanceled(): void {
-  console.log(`Canceled`)
+  console.warn(`Processing canceled`)
 }
 
 function reportForceRunWarning(): void {
   console.warn(`Force override file`)
 }
 
+function makeJsonData(content: string, options: EmitOptions): string {
+  return JSON.stringify({
+    from: options.from,
+    to: options.to,
+    json: options.json,
+    color: options.color,
+    content
+  }, undefined, `  `)
+}
+
 function reportSuccessful(filePath: string): void {
-  console.log(`Cli script created successful at "${filePath}"`)
+  console.log(`Cli script created successfully`)
+  console.log(`Cli writen at "${filePath}"`)
 }
 
-function reportFailed(filePath: string, error: Error): void {
-  console.log(`Cli script created failed at "${filePath}"\n`)
-  console.error(error)
-}
-
-function writeFS(path: string, content: string): void {
-  fs.writeFileSync(path, content, `utf-8`)
-}
-
-function writeLog(path: string, content: string): void {
-  console.log(`Write Path: ${path}`)
-  console.log(`Write Content: \n\n${content}`)
-}
-
-const enum Writter { FS = 'fs', Log = 'log' }
-
-const DEFAULT_WRITTER: { [K in Writter]: WriteProcess } = {
-  [Writter.FS]: writeFS,
-  [Writter.Log]: writeLog
+function reportSummary(options: EmitOptions): void {
+  console.log(`In:  "${options.from}"`)
+  console.log(`Out: "${options.to}"`)
 }

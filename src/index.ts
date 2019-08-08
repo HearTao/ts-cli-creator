@@ -1,18 +1,32 @@
-import * as path from 'path'
 import generate from './generator'
 
 
 export interface Options {
+  /**
+   * Output file path, output to stdout when not set
+   * @alias o
+   */
   output?: string
+  /**
+   * Force override output file content when file already exists, request Y/n when not set
+   */
+  force?: boolean
+  /**
+   * Output json data
+   */
+  json?: boolean
+  /**
+   * Output with color when write data to stdout
+   */
+  color?: boolean
+  /**
+   * Output full infomations
+   */
+  verbose?: boolean
 }
 
 export default async function main(entry: string, options: Options = {}): Promise<void> {
-  const { output = `./cli.ts` } = options
-  const entryPath = path.isAbsolute(entry) ? entry : path.resolve(entry)
-  const outPath = path.isAbsolute(output) 
-    ? output
-    : path.resolve(path.dirname(entryPath), output)
-  generate(outPath, entryPath)
+  generate(entry, options)
 }
 
 export { default as resolve, COMMAND_JSDOC_TAG } from './resolver'

@@ -64,8 +64,8 @@ function makeOptionsProperties(decl: InterfaceDeclaration): { results: Transform
     
     const type = property.getType()
     const [ typeExpr, info ] = makeOptionsTypeExpression(type)
-    const descExpr = makeOptionsDescriptionExpression(decl)
-    const tagExpr = makeOptionJSDocTagExpression(decl)
+    const descExpr = makeOptionsDescriptionExpression(property)
+    const tagExpr = makeOptionJSDocTagExpression(property)
 
     acc.results.push({ 
       name, 
