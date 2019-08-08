@@ -35,11 +35,11 @@ Generate `cli.ts` file:
 import * as yargs from 'yargs'
 import command from './command'
 
-export default function main(): void {
+export default async function main(): Promise<void> {
     yargs
         .strict()
         .command(
-            '$0 <param> [options]', '', 
+            '$0 <param> [...options]', '', 
             yargs => {
                 return yargs
                     .positional('param', { type: string })
@@ -114,7 +114,13 @@ Transform to:
 
 ### Generate options
 
-when the command last param matched `/options?/`, and type was interface declaration. **ts-cli** will generate a options for you. see below: 
+when the command last param matched `/options?/`, and type was interface declaration. like:
+
+```ts
+function command(param: string, options: Options) {}
+```
+
+**ts-cli** will generate a options for you. see below: 
 
 #### 1. Transform interface properties to command options
 
@@ -191,10 +197,11 @@ Transform to:
 })
 ```
 
-## Options
+## Cli Options
 
-| Name | Description | Type | Default | 
+| Name | Description | Type | Default |
 |------|-------|--------|---------|
+| output | Output file path, output to stdout when not set | `string` | `undefined` |
 | strict | enable strict mode | `boolean` | `true` |
 | helper | global helper options to show helper messages  | `boolean` | `true` |
 | helperAlias | helper options short for 'h'  | `boolean` | `true` |
@@ -202,6 +209,5 @@ Transform to:
 
 ## TODOS
 
-- [ ] Enum supports
 - [ ] Sub commander
 - [ ] Other cli provider, like commander
