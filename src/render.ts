@@ -100,12 +100,12 @@ function makeRefImportDeclarationNode(outputSourceFile: SourceFile, ref: NodeSou
         undefined,
         undefined,
         ts.createImportClause(
-          0 === def.length ? undefined : ts.createIdentifier(def[0]),
+          0 === def.length ? undefined : ts.createIdentifier(def[0].name),
           ts.createNamedImports(
-            named.map(name => {
+            named.map(node => {
               return ts.createImportSpecifier(
                 undefined,
-                ts.createIdentifier(name)
+                ts.createIdentifier(node.name)
               )
             })
           )

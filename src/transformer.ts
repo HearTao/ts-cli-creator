@@ -29,7 +29,8 @@ export type NodeSourceFileInfo = {
   sourceFile: SourceFile
 }
 
-export type NodeSourceFileInfoMap = Map<SourceFile, { default: string[], named: string[] }>
+type NodeSourceFileInfoMapValue = { default: NodeSourceFileInfo[], named: NodeSourceFileInfo[] }
+export type NodeSourceFileInfoMap = Map<SourceFile, NodeSourceFileInfoMapValue>
 
 
 type CliTypeProperties = 
@@ -76,7 +77,7 @@ function makeOptionsProperties(decl: InterfaceDeclaration): { results: Transform
     })
 
     if(info) {
-      const { name, type, sourceFile } = info
+      const { type, sourceFile } = info
       let sf = acc.ref.get(sourceFile)
       if(undefined === sf) {
         sf = { default: [], named: [] }
@@ -84,8 +85,8 @@ function makeOptionsProperties(decl: InterfaceDeclaration): { results: Transform
       }
 
       switch(type) {
-        case DeclarationExportType.Default: sf.default.push(name); break;
-        case DeclarationExportType.Named: sf.named.push(name); break;
+        case DeclarationExportType.Default: sf.default.push(info); break;
+        case DeclarationExportType.Named: sf.named.push(info); break;
         default: throw new Error(`Unknown declaration type`)
       }
     }
@@ -252,7 +253,7 @@ export function makeCommandProperties(params: ParameterDeclaration[]): { results
     })
 
     if(info) {
-      const { name, type, sourceFile } = info
+      const { type, sourceFile } = info
       let sf = acc.ref.get(sourceFile)
       if(undefined === sf) {
         sf = { default: [], named: [] }
@@ -260,8 +261,8 @@ export function makeCommandProperties(params: ParameterDeclaration[]): { results
       }
 
       switch(type) {
-        case DeclarationExportType.Default: sf.default.push(name); break;
-        case DeclarationExportType.Named: sf.named.push(name); break;
+        case DeclarationExportType.Default: sf.default.push(info); break;
+        case DeclarationExportType.Named: sf.named.push(info); break;
         default: throw new Error(`Unknown declaration type`)
       }
     }
@@ -314,59 +315,46 @@ export function makeCommandDescriptionExpression(param: ParameterDeclaration): {
   return { description: ts.createStringLiteral(description) }
 }
 
-function makeModuleRefencesTable(name: string, decl: FunctionDeclaration, ...refs: NodeSourceFileInfoMap[]): NodeSourceFileInfoMap {
+function makeModuleRefencesTable(name: string, decl: FunctionDeclaration, ...infoMaps: NodeSourceFileInfoMap[]): NodeSourceFileInfoMap {
   const ref: NodeSourceFileInfoMap = new Map()
   const commandSourceFile = decl.getSourceFile()
-  ref.set(commandSourceFile, { default: [ name ], named: [] })
+  ref.set(commandSourceFile, { default: [ makeNodeSourceFileInfo(name, DeclarationExportType.Default, decl) ], named: [] })
   
-  const nameTable: Map<string, SourceFile[]> = new Map
-  nameTable.set(name, [ commandSourceFile ])
+  const nameTable: Map<string, Node[]> = new Map([[ name, [ decl ] ]])
 
-  refs.forEach(ref => mergeRef(ref))
-  reportNameConflict()
+  infoMaps.forEach(ref => mergeRef(ref))
+  assertNameConflict(nameTable)
   return ref
-
-  function reportNameConflict() {
-    nameTable.forEach((sourceFiles, name) => {
-      if(sourceFiles.length > 1) throw new Error(`\
-  ${name} both exported from:
-  ${sourceFiles.map(sourceFile => `  - ` + sourceFile.getFilePath()).join('\n')}
-  `)
-    })
-  }
 
   function mergeRef(target: NodeSourceFileInfoMap) {
     target.forEach((value, sourceFile) => {
-      let sf = ref.get(sourceFile)
-      if(undefined === sf) {
-        sf = { default: [], named: [] }
-        ref.set(sourceFile, sf)
+      let val = ref.get(sourceFile)
+      if(undefined === val) {
+        val = { default: [], named: [] }
+        ref.set(sourceFile, val)
       }
 
-      margeRefExport(sf, value, sourceFile)
+      margeRefExport(val, value)
     })
   }
 
-  type MapValue = { default: string[], named: string[] }
-
-  function margeRefExport(target: MapValue, value: MapValue, sourceFile: SourceFile) {
-    value.default.forEach(name => {
-      target.default.push(name)
-      pushToNameTable(name, sourceFile)
-    })
-    value.named.forEach(name => {
-      target.named.push(name)
-      pushToNameTable(name, sourceFile)
+  function margeRefExport(target: NodeSourceFileInfoMapValue, value: NodeSourceFileInfoMapValue) {
+    const keys: (keyof NodeSourceFileInfoMapValue)[] = ['default', 'named']
+    keys.forEach(name => {
+      value[name].forEach(info => {
+        target[name].push(info)
+        pushToNameTable(info.name, info.node)
+      })
     })
   }
 
-  function pushToNameTable(name: string, sourceFile: SourceFile) {
+  function pushToNameTable(name: string, node: Node) {
     let tb = nameTable.get(name)
     if(undefined === tb) {
       tb = []
       nameTable.set(name, tb)
     }
-    tb.push(sourceFile)
+    tb.push(node)
   }
 }
 
@@ -381,12 +369,12 @@ function makeCallableNode(iden: string, result: TransformCallResult): ts.CallExp
     undefined,
     [ 
       ts.createStringLiteral(result.name), 
-      makePropsNode(result.properties)
+      makeObjectLiteralNode(result.properties)
     ]
   )
 }
 
-function makePropsNode(props: { [key: string]: ts.Expression }): ts.ObjectLiteralExpression {
+function makeObjectLiteralNode(props: { [key: string]: ts.Expression }): ts.ObjectLiteralExpression {
   const objects = []
   for (const key in props) {
     if (props.hasOwnProperty(key)) {
@@ -507,8 +495,15 @@ export function getJSDocTag(jsdoc: JSDoc | undefined, test: JSDocTest, index: nu
   return res[index]
 }
 
-export function stringifyJSDocTag(tag: JSDocTag): string {
-  return tag.getText().replace(/^@/, '').trim()
+function assertNameConflict(table: Map<string, Node[]>): void {
+  const message: string[] = []
+  table.forEach((nodes, name) => {
+    if(nodes.length > 1) message.push(
+      `"${name}" both exported from: ${nodes.map(node => `${node.getSymbol()!.getFullyQualifiedName()}`).join(', ')}`
+    )
+  })
+  if(0 === message.length) return
+  throw new Error(`Name conflict:\n${message.join('\n')}`)
 }
 
 export function makeUnsupportsTypeError(name: string, type: string): Error {

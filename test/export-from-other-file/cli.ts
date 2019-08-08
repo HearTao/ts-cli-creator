@@ -1,8 +1,7 @@
 import * as yargs from "yargs";
-import command from "./";
-import { E } from './enum'
-
-export default function main(): void {
+import index from "./index";
+import { E } from "./enum";
+export default function cli(): void {
   yargs
     .strict()
     .command(
@@ -16,7 +15,7 @@ export default function main(): void {
       args => {
         const { _, $0, foo, ...options } = args;
         if (undefined === foo) throw new TypeError("Argument foo was required");
-        command(foo, options);
+        index(foo, options);
       }
     )
     .help()

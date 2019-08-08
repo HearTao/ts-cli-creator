@@ -1,7 +1,7 @@
 {
 	"private": true,
-	"name": "ts-cli-export-from-other-file",
-	"description": "test for ts-cli-export-from-other-file",
+	"name": "ts-cli-export-name-conflict",
+	"description": "test for ts-cli-export-name-conflict",
 	"main": "./index.ts",
 	"scripts": {
 		"prestart": "npm i ../../dist",

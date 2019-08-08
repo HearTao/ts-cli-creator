@@ -1,7 +1,7 @@
 import * as vm from 'vm'
 import * as yargs from 'yargs'
 import { Project, ts, SourceFile, printNode, FunctionDeclaration, ParameterDeclaration, InterfaceDeclaration, PropertySignature } from 'ts-morph'
-import { transformCommand, transformOption, makeUnsupportsTypeError, parseExprStmt, makeCommandTypeExpression, getJSDocTags, getJSDoc, getJSDocTag, makeCommandDescriptionExpression, makeCommandProperties, getCommandDescription, makeOptionsTypeExpression, makeOptionsDescriptionExpression, makeOptionJSDocTagExpression } from './transformer'
+import { transformCommand, transformOption, makeUnsupportsTypeError, parseExprStmt, makeCommandTypeExpression, getJSDocTags, getJSDoc, getJSDocTag, makeCommandDescriptionExpression, makeCommandProperties, getCommandDescription, makeOptionsTypeExpression, makeOptionsDescriptionExpression, makeOptionJSDocTagExpression, DeclarationExportType } from './transformer'
 import { generateCallableChain } from './render'
 
 
@@ -10,21 +10,23 @@ describe(`transformCommand()`, () => {
     test(`string, number, boolean`, () => {
       const code: string = `function(foo: string) {}`
       const param: ParameterDeclaration = getFunctionParameterDecl(code)
-      const [resolved] = makeCommandTypeExpression(param)
+      const [resolved, ref] = makeCommandTypeExpression(param)
       expect(resolved).toEqual({ type: ts.createStringLiteral(`string`) })
+      expect(ref).toBeUndefined()
     })
 
     test(`no type or any type`, () => {
       const code: string = `function(foo) {}`
       const param: ParameterDeclaration = getFunctionParameterDecl(code)
-      const [resolved] = makeCommandTypeExpression(param)
+      const [resolved, ref] = makeCommandTypeExpression(param)
       expect(resolved).toEqual({ type: ts.createStringLiteral(`string`) })
+      expect(ref).toBeUndefined()
     })
 
     test(`enmu type`, () => {
-      const code: string = `enum E { A = 'a', B = 'b' }; function(foo: E) {}`
+      const code: string = `export enum E { A = 'a', B = 'b' }; function(foo: E) {}`
       const param: ParameterDeclaration = getFunctionParameterDecl(code)
-      const [resolved] = makeCommandTypeExpression(param)
+      const [resolved, ref] = makeCommandTypeExpression(param)
       expect(resolved).toEqual({ 
         choices: ts.createArrayLiteral([
           ts.createPropertyAccess(
@@ -37,12 +39,20 @@ describe(`transformCommand()`, () => {
           )
         ], false)
       })
+      const node = param.getType().getSymbol()!.getValueDeclaration()
+      expect(ref).toEqual({
+        name: `E`,
+        type: DeclarationExportType.Named,
+        node,
+        sourceFile: node!.getSourceFile()
+      })
     })
 
     test(`enmu type, but only one member`, () => {
-      const code: string = `enum E { A = 'a' }; function(foo: E) {}`
+      const code: string = `export enum E { A = 'a' }; function(foo: E) {}`
       const param: ParameterDeclaration = getFunctionParameterDecl(code)
-      const [resolved] = makeCommandTypeExpression(param)
+      const node = param.getType().getSymbol()!.getValueDeclaration()!.getParent()
+      const [resolved, ref] = makeCommandTypeExpression(param)
       expect(resolved).toEqual({ 
         choices: ts.createArrayLiteral([
           ts.createPropertyAccess(
@@ -50,6 +60,13 @@ describe(`transformCommand()`, () => {
             ts.createIdentifier(`A`)
           )
         ], false)
+      })
+      
+      expect(ref).toEqual({
+        name: `E`,
+        type: DeclarationExportType.Named,
+        node,
+        sourceFile: node!.getSourceFile()
       })
     })
 
@@ -92,7 +109,7 @@ describe(`transformCommand()`, () => {
 function(foo) {}`
       const func = getFunctionDecl(code)
       const resolved = makeCommandProperties(func.getParameters())
-      expect(resolved).toEqual([
+      expect(resolved.results).toEqual([
         {
           name: `foo`,
           properties: {
@@ -101,6 +118,7 @@ function(foo) {}`
           }
         }
       ])
+      expect(resolved.ref).toEqual(new Map)
     })
 
     test(`multi`, () => {
@@ -112,7 +130,7 @@ function(foo) {}`
 function(foo, bar: number) {}`
       const func = getFunctionDecl(code)
       const resolved = makeCommandProperties(func.getParameters())
-      expect(resolved).toEqual([
+      expect(resolved.results).toEqual([
         { 
           name: `foo`,
           properties: {
@@ -127,6 +145,7 @@ function(foo, bar: number) {}`
           }
         }
       ])
+      expect(resolved.ref).toEqual(new Map)
     })
   })
 
@@ -152,11 +171,29 @@ function(foo, bar: number) {}`
 
   describe(`transformCommand()`, () => {
     test(`simple`, () => {
-      const code = `function(){}`
-      const resolved = transformCommand(getFunctionDecl(code))
+      const code = `export default function foo(){}`
+      const node = getFunctionDecl(code)
+      const resolved = transformCommand(node)
+      expect(resolved.name).toBe(`foo`)
       expect(resolved.description).toEqual(ts.createStringLiteral(''))
       expect(resolved.positionals).toEqual([])
       expect(resolved.options).toEqual([])
+      expect(resolved.ref).toEqual(new Map([[ 
+        node.getSourceFile(), { 
+        default: [{
+          name: `foo`,
+          type: DeclarationExportType.Default,
+          node,
+          sourceFile: node.getSourceFile()
+        }], named: [] } 
+      ]]))
+    })
+
+    test(`ref name conflict`, () => {
+      const code = `\
+export enum E { A = 'a' }; function E(foo: E){}`
+      const node = getFunctionDecl(code)
+      expect(() => transformCommand(node)).toThrow()
     })
   })
 })
@@ -166,56 +203,63 @@ describe(`transformOptions()`, () => {
     test(`string`, () => {
       const code = `interface Options { foo: string }`
       const prop = getInterfaceProperty(code)
-      const resolved = makeOptionsTypeExpression(prop.getType())
+      const [resolved, ref] = makeOptionsTypeExpression(prop.getType())
       expect(resolved).toEqual({ type: ts.createStringLiteral(`string`) })
+      expect(ref).toBeUndefined()
     })
     
     test(`number`, () => {
       const code = `interface Options { foo: number }`
       const prop = getInterfaceProperty(code)
-      const resolved = makeOptionsTypeExpression(prop.getType())
+      const [resolved, ref] = makeOptionsTypeExpression(prop.getType())
       expect(resolved).toEqual({ type: ts.createStringLiteral(`number`) })
+      expect(ref).toBeUndefined()
     })
   
     test(`boolean`, () => {
       const code = `interface Options { foo: boolean }`
       const prop = getInterfaceProperty(code)
-      const resolved = makeOptionsTypeExpression(prop.getType())
+      const [resolved, ref] = makeOptionsTypeExpression(prop.getType())
       expect(resolved).toEqual({ type: ts.createStringLiteral(`boolean`) })
+      expect(ref).toBeUndefined()
     })
   
     test(`string[]`, () => {
       const code = `interface Options { foo: string[] }`
       const prop = getInterfaceProperty(code)
-      const resolved = makeOptionsTypeExpression(prop.getType())
+      const [resolved, ref] = makeOptionsTypeExpression(prop.getType())
       expect(resolved).toEqual({ type: ts.createStringLiteral(`string`), array: ts.createTrue() })
+      expect(ref).toBeUndefined()
     })
   
     test(`Array<string>`, () => {
       const code = `interface Options { foo: Array<string> }`
       const prop = getInterfaceProperty(code)
-      const resolved = makeOptionsTypeExpression(prop.getType())
+      const [resolved, ref] = makeOptionsTypeExpression(prop.getType())
       expect(resolved).toEqual({ type: ts.createStringLiteral(`string`), array: ts.createTrue() })
+      expect(ref).toBeUndefined()
     })
 
     test(`number[]`, () => {
       const code = `interface Options { foo: number[] }`
       const prop = getInterfaceProperty(code)
-      const resolved = makeOptionsTypeExpression(prop.getType())
+      const [resolved, ref] = makeOptionsTypeExpression(prop.getType())
       expect(resolved).toEqual({ type: ts.createStringLiteral(`number`), array: ts.createTrue() })
+      expect(ref).toBeUndefined()
     })
   
     test(`boolean[]`, () => {
       const code = `interface Options { foo: boolean[] }`
       const prop = getInterfaceProperty(code)
-      const resolved = makeOptionsTypeExpression(prop.getType())
+      const [resolved, ref] = makeOptionsTypeExpression(prop.getType())
       expect(resolved).toEqual({ type: ts.createStringLiteral(`boolean`), array: ts.createTrue() })
+      expect(ref).toBeUndefined()
     })
   
     test(`enum`, () => {
-      const code = `enum E { A = 'a', B = 'b' }; interface Options { foo: E }`
+      const code = `export enum E { A = 'a', B = 'b' }; interface Options { foo: E }`
       const prop = getInterfaceProperty(code)
-      const resolved = makeOptionsTypeExpression(prop.getType())
+      const [resolved, ref] = makeOptionsTypeExpression(prop.getType())
       expect(resolved).toEqual({ 
         choices: ts.createArrayLiteral([
           ts.createPropertyAccess(
@@ -228,12 +272,19 @@ describe(`transformOptions()`, () => {
           )
         ], false)
       })
+      const node = prop.getType().getSymbol()!.getValueDeclaration()
+      expect(ref).toEqual({
+        name: `E`,
+        type: DeclarationExportType.Named,
+        node,
+        sourceFile: node!.getSourceFile()
+      })
     })
 
     test(`enum, only one member`, () => {
-      const code = `enum E { A = 'a' }; interface Options { foo: E }`
+      const code = `export enum E { A = 'a' }; interface Options { foo: E }`
       const prop = getInterfaceProperty(code)
-      const resolved = makeOptionsTypeExpression(prop.getType())
+      const [resolved, ref] = makeOptionsTypeExpression(prop.getType())
       expect(resolved).toEqual({ 
         choices: ts.createArrayLiteral([
           ts.createPropertyAccess(
@@ -241,6 +292,13 @@ describe(`transformOptions()`, () => {
             ts.createIdentifier(`A`)
           )
         ], false)
+      })
+      const node = prop.getType().getSymbol()!.getValueDeclaration()!.getParent()
+      expect(ref).toEqual({
+        name: `E`,
+        type: DeclarationExportType.Named,
+        node,
+        sourceFile: node!.getSourceFile()
       })
     })
   
@@ -515,7 +573,7 @@ function runOption(code: string): [ ts.CallExpression[], SourceFile ] {
     skipFileDependencyResolution: true
   })
   const sourceFile = project.createSourceFile(`tmp.ts`, code)
-  return [ transformOption(sourceFile.getInterfaces()[0]), sourceFile ]
+  return [ transformOption(sourceFile.getInterfaces()[0])[0], sourceFile ]
 }
 
 function getFunctionDecl(code: string): FunctionDeclaration {
