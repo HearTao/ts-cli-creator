@@ -183,7 +183,7 @@ export function transformCommand(decl: FunctionDeclaration): TransformResult {
   if(optionParam) {}
   const [ options, optionsRef ] = optionParam ? transformOption(getOptionsInterfaceDecl(optionParam)) : [[],new Map]
   const description = getCommandDescription(decl)
-  const name = getDeclarationDefaultName(decl)
+  const name = getFunctionDeclarationDefaultName(decl)
   const ref = makeModuleRefencesTable(name, decl, positionalRef, optionsRef)
 
   return {
@@ -395,9 +395,9 @@ function makeNodeSourceFileInfo(name: string, type: DeclarationExportType, node:
   return { name, node, type, sourceFile: node.getSourceFile() }
 }
 
-function getDeclarationDefaultName(decl: FunctionDeclaration): string {
+export function getFunctionDeclarationDefaultName(decl: FunctionDeclaration): string {
   const name = decl.getName()
-  if(undefined !== name) return name
+  if(name) return name
   const sourceFile = decl.getSourceFile()
   const baseName = sourceFile.getBaseName()
   return path.basename(baseName, path.extname(baseName))

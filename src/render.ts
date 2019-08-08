@@ -1,28 +1,34 @@
-import { ts, SourceFile } from 'ts-morph'
-import { TransformResult } from './transformer'
-import { Context } from './generator';
+import { ts, SourceFile, FunctionDeclaration } from 'ts-morph'
+import { TransformResult, getFunctionDeclarationDefaultName } from './transformer'
+import { Context } from './generator'
+import { defaults } from 'lodash'
 
 const CLI_LIB_NAME: string = `yargs`
 const FUNCTION_NAME: string = `cli`
 
 export interface RenderOptions {
   lib: string
+  functionName: string
   strict: boolean
   help: boolean
   helpAlias: boolean
   version: boolean
+  asyncFunction: boolean
 }
 
-const DEFAULT_RENDER_OPTIONS: RenderOptions = {
+export const DEFAULT_RENDER_OPTIONS: RenderOptions = {
   lib: CLI_LIB_NAME,
+  functionName: FUNCTION_NAME,
   strict: true,
   help: true,
   helpAlias: true,
-  version: true
+  version: true,
+  asyncFunction: true
 }
 
 export default function render(result: TransformResult, outputSourceFile: SourceFile, entrySourceFile: SourceFile, options: Partial<RenderOptions> = {}, context: Context): ts.Node[] {
-  const { lib, strict, help, helpAlias, version } = { ...DEFAULT_RENDER_OPTIONS, ...options }
+  const opts = defaults(options, DEFAULT_RENDER_OPTIONS)
+  const { lib, strict, help, helpAlias, version } = opts
   const acc = []
 
   if(strict) acc.push(ts.createCall(ts.createIdentifier('strict'), undefined, []))
@@ -41,23 +47,42 @@ export default function render(result: TransformResult, outputSourceFile: Source
     )
   )
   
-  return makeWrapper([ yargsNode ], outputSourceFile, entrySourceFile, result, context)
+  return makeWrapper([ yargsNode ], {
+    outputSourceFile, 
+    entrySourceFile, 
+    result, 
+    context,
+    options: opts
+  })
 }
 
 // #region wrapper
 
-export function makeWrapper(body: ts.Statement[] = [], outputSourceFile: SourceFile, entrySourceFile: SourceFile, result: TransformResult, context: Context): ts.Node[] {
-  return [
-    makeLibImportDeclarationNode(`yargs`, `yargs`, context),
-    ...(context.stdin ? entrySourceFile.compilerNode.statements : makeRefImportDeclarationNode(outputSourceFile, result)),
-    makeWrapperFunctionDeclaration(body),
-    ...(context.stdin ? ts.createCall(
-      ts.createIdentifier(FUNCTION_NAME),
-      undefined,
-      [
-      ]
-    ) : [])
-  ]
+interface MakeWrapperOptions {
+  outputSourceFile: SourceFile
+  entrySourceFile: SourceFile
+  result: TransformResult
+  context: Context
+  options: RenderOptions
+}
+
+export function makeWrapper(body: ts.Statement[] = [], options: MakeWrapperOptions): ts.Node[] {
+  const nodes: ReturnType<typeof makeWrapper> = []
+  nodes.push(makeLibImportDeclarationNode(`yargs`, `yargs`, options.context))
+  
+  if(options.context.stdin) {
+    options.entrySourceFile.getStatements().forEach(stmt => nodes.push(stmt.compilerNode))
+  } else {
+    makeRefImportDeclarationNode(options.outputSourceFile, options.result).forEach(node => nodes.push(node))
+  }
+
+  nodes.push(makeWrapperFunctionDeclaration(body, options.options))
+
+  if(options.context.stdin) {
+    nodes.push(ts.createCall(ts.createIdentifier(options.options.functionName), undefined, []))
+  }
+  
+  return nodes
 }
 
 export function makeLibImportDeclarationNode(exporter: string, path: string, context: Context): ts.ImportDeclaration {
@@ -75,45 +100,25 @@ export function makeLibImportDeclarationNode(exporter: string, path: string, con
   )
 }
 
-export function makeCommandImportDeclarationNode(exporter: string, outputSourceFile: SourceFile, entrySourceFile: SourceFile, namedExporter: string[] = []): ts.ImportDeclaration {
-  const filePath = outputSourceFile.getRelativePathAsModuleSpecifierTo(entrySourceFile)
-
-  return ts.createImportDeclaration(
-    undefined,
-    undefined,
-    ts.createImportClause(
-      ts.createIdentifier(exporter),
-
-      0 === namedExporter.length ? undefined : 
-      ts.createNamedImports(
-        namedExporter.map(name => {
-          return ts.createImportSpecifier(
-            undefined,
-            ts.createIdentifier(name)
-          )
-        })
-      )
-
-    ),
-    ts.createStringLiteral(filePath)
-  )
-}
-
-function makeRefImportDeclarationNode(outputSourceFile: SourceFile, result: TransformResult): ts.ImportDeclaration[] {
+export function makeRefImportDeclarationNode(outputSourceFile: SourceFile, result: TransformResult): ts.ImportDeclaration[] {
   const acc: ReturnType<typeof makeRefImportDeclarationNode> = []
   result.ref.forEach(({ default: def, named }, sourceFile) => {
     const filePath = outputSourceFile.getRelativePathAsModuleSpecifierTo(sourceFile)
+    const defaultExporter = 0 === def.length 
+      ? undefined 
+      : ts.createIdentifier(getFunctionDeclarationDefaultName(def[0].node as FunctionDeclaration))
+
     acc.push(
       ts.createImportDeclaration(
         undefined,
         undefined,
         ts.createImportClause(
-          0 === def.length ? undefined : ts.createIdentifier(def[0].name),
+          defaultExporter,
           ts.createNamedImports(
-            named.map(node => {
+            named.map(info => {
               return ts.createImportSpecifier(
                 undefined,
-                ts.createIdentifier(node.name)
+                ts.createIdentifier(info.name)
               )
             })
           )
@@ -126,18 +131,30 @@ function makeRefImportDeclarationNode(outputSourceFile: SourceFile, result: Tran
   return acc
 }
 
-export function makeWrapperFunctionDeclaration(body: ts.Statement[] = [], name: string = FUNCTION_NAME): ts.FunctionDeclaration {
+export function makeWrapperFunctionDeclaration(body: ts.Statement[] = [], options: RenderOptions): ts.FunctionDeclaration {
+  const modifiers: ReturnType<typeof ts.createModifier>[] = [
+    ts.createModifier(ts.SyntaxKind.ExportKeyword),
+    ts.createModifier(ts.SyntaxKind.DefaultKeyword)
+  ]
+
+  if(options.asyncFunction) modifiers.push(ts.createModifier(ts.SyntaxKind.AsyncKeyword))
+  
+  const returnType = options.asyncFunction 
+    ? ts.createTypeReferenceNode(ts.createIdentifier('Promise'), [
+        ts.createKeywordTypeNode(ts.SyntaxKind.VoidKeyword)
+      ])
+    : ts.createKeywordTypeNode(ts.SyntaxKind.VoidKeyword)
+
   return ts.createFunctionDeclaration(
     undefined,
+    modifiers,
+    undefined,
+    ts.createIdentifier(options.functionName),
+    undefined,
     [
-      ts.createModifier(ts.SyntaxKind.ExportKeyword),
-      ts.createModifier(ts.SyntaxKind.DefaultKeyword),
+
     ],
-    undefined,
-    ts.createIdentifier(name),
-    undefined,
-    [],
-    ts.createKeywordTypeNode(ts.SyntaxKind.VoidKeyword),
+    returnType,
     ts.createBlock(body, true)
   )
 }
@@ -162,11 +179,11 @@ function makeCommandNode(result: TransformResult): ts.CallExpression {
   return commandNode
 }
 
-function makePositionalCommandString(result: TransformResult): ts.StringLiteral {
+export function makePositionalCommandString(result: TransformResult): ts.StringLiteral {
   const { positionals, options } = result
   const acc: string[] = [`$0`]
-  positionals.forEach(([ name ]) => acc.push(`<${name}>`))
-  if(0 !== options.length) acc.push(`[options]`)
+  positionals.forEach(([ name ]) => acc.push(`<${name}>`))/**@todo optional positional like stdin */
+  if(0 !== options.length) acc.push(`[...options]`)
   return ts.createStringLiteral(acc.join(` `))
 }
 
