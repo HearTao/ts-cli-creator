@@ -7,6 +7,8 @@ export interface Options {
    * @alias o
    */
   output?: string
+  bin?: boolean
+  run?: boolean
   /**
    * Force override output file content when file already exists, request Y/n when not set
    */
@@ -25,8 +27,18 @@ export interface Options {
   verbose?: boolean
 }
 
+/**
+ * Yet another cli generator based TypeScript code
+ * 
+ * @param entry entry file
+ */
 export default async function main(entry: string, options: Options = {}): Promise<void> {
-  generate(entry, options)
+  const context = main.__CLICONTEXT__
+  generate(entry, options, context)
+}
+
+main.__CLICONTEXT__ = {
+  stdin: false
 }
 
 export { default as resolve, COMMAND_JSDOC_TAG } from './resolver'

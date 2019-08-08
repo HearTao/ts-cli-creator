@@ -1,4 +1,4 @@
-import { ts, Project, printNode } from 'ts-morph'
+import { ts, Project, printNode, SourceFile } from 'ts-morph'
 import * as prettier from 'prettier'
 import * as path from 'path'
 import resolve from './resolver'
@@ -6,32 +6,33 @@ import { transformCommand } from './transformer'
 import render, { RenderOptions } from './render'
 import emit, { EmitOptions, Writter, DEFAULT_WRITTER } from './emitter'
 
-interface GenerateOptions {
-  output?: string
+export interface Context {
+  stdin?: boolean
 }
 
-export type Options = 
-  & GenerateOptions 
-  & EmitOptions 
+export interface GenerateOptions {
+  output?: string
+  bin?: boolean
+  run?: boolean
+}
+
+export type Options =
+  & GenerateOptions
+  & EmitOptions
   & RenderOptions
 
-export default function generate(entry: string, options: Partial<Options> = {}): void {
-  const entryPath = path.isAbsolute(entry) ? entry : path.resolve(entry)
+export default function generate(entry: string, options: Partial<Options> = {}, context: Context = {}): void {
   const isOutputToStdout = undefined === options.output
-  const output = options.output || './cli.ts'
-  const outputPath = path.isAbsolute(output) ? output : path.resolve(path.dirname(entryPath), output)
-
   const project = new Project()
+  const { outputPath, entrySourceFile } = resolveEntry(entry, project, options, Boolean(context.stdin))
   const outputSourceFile = project.createSourceFile(outputPath, ``, { overwrite: true })
-  const entrySourceFile = project.addExistingSourceFile(entryPath)
   const functionDeclaration = resolve(entrySourceFile)
   if(undefined === functionDeclaration) throw 42 /**@todo sub commit */
   
-  const result = transformCommand(functionDeclaration)
+  const transformed = transformCommand(functionDeclaration)
   
-  const out = render(result, outputSourceFile, entrySourceFile, {
-
-  })
+  const out = render(transformed, outputSourceFile, entrySourceFile, {}, context)
+  const result = print(out)
 
   const emitOptions = {
     verbose: options.verbose,
@@ -43,7 +44,16 @@ export default function generate(entry: string, options: Partial<Options> = {}):
     to: isOutputToStdout ? `STDOUT` : outputPath
   }
   
-  emit(outputPath, print(out), emitOptions)
+  emit(outputPath, result, emitOptions)
+}
+
+function resolveEntry(entry: string, project: Project, options: GenerateOptions, stdin: boolean): { outputPath: string, entrySourceFile: SourceFile } {
+  const { output = './cli.ts' } = options
+  const entryPath = stdin ? path.resolve('__STDIN__.ts') : path.resolve(entry)
+  const context = stdin ? entryPath : path.dirname(entryPath)
+  const outputPath = path.isAbsolute(output) ? output : path.resolve(context, output)
+  const entrySourceFile = stdin ? project.createSourceFile(entryPath, entry) : project.addExistingSourceFile(entryPath)
+  return { outputPath, entrySourceFile }
 }
 
 export function print(nodes: ts.Node | ts.Node[], options: prettier.Options = {}): string {

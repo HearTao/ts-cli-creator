@@ -1,5 +1,6 @@
 import { ts, SourceFile } from 'ts-morph'
-import { TransformResult, NodeSourceFileInfoMap } from './transformer'
+import { TransformResult } from './transformer'
+import { Context } from './generator';
 
 const CLI_LIB_NAME: string = `yargs`
 const FUNCTION_NAME: string = `cli`
@@ -20,7 +21,7 @@ const DEFAULT_RENDER_OPTIONS: RenderOptions = {
   version: true
 }
 
-export default function render(result: TransformResult, outputSourceFile: SourceFile, entrySourceFile: SourceFile, options: Partial<RenderOptions> = {}): ts.Node[] {
+export default function render(result: TransformResult, outputSourceFile: SourceFile, entrySourceFile: SourceFile, options: Partial<RenderOptions> = {}, context: Context): ts.Node[] {
   const { lib, strict, help, helpAlias, version } = { ...DEFAULT_RENDER_OPTIONS, ...options }
   const acc = []
 
@@ -40,20 +41,27 @@ export default function render(result: TransformResult, outputSourceFile: Source
     )
   )
   
-  return makeWrapper([ yargsNode ], outputSourceFile, entrySourceFile, result.ref)
+  return makeWrapper([ yargsNode ], outputSourceFile, entrySourceFile, result, context)
 }
 
 // #region wrapper
 
-export function makeWrapper(body: ts.Statement[] = [], outputSourceFile: SourceFile, _entrySourceFile: SourceFile, ref: NodeSourceFileInfoMap): ts.Node[] {
+export function makeWrapper(body: ts.Statement[] = [], outputSourceFile: SourceFile, entrySourceFile: SourceFile, result: TransformResult, context: Context): ts.Node[] {
   return [
-    makeLibImportDeclarationNode(`yargs`, `yargs`),
-    ...makeRefImportDeclarationNode(outputSourceFile, ref),
-    makeWrapperFunctionDeclaration(body)
+    makeLibImportDeclarationNode(`yargs`, `yargs`, context),
+    ...(context.stdin ? entrySourceFile.compilerNode.statements : makeRefImportDeclarationNode(outputSourceFile, result)),
+    makeWrapperFunctionDeclaration(body),
+    ...(context.stdin ? ts.createCall(
+      ts.createIdentifier(FUNCTION_NAME),
+      undefined,
+      [
+      ]
+    ) : [])
   ]
 }
 
-export function makeLibImportDeclarationNode(exporter: string, path: string): ts.ImportDeclaration {
+export function makeLibImportDeclarationNode(exporter: string, path: string, context: Context): ts.ImportDeclaration {
+  const modulePath = context.stdin ? require.resolve(path) : path
   return ts.createImportDeclaration(
     undefined,
     undefined,
@@ -63,7 +71,7 @@ export function makeLibImportDeclarationNode(exporter: string, path: string): ts
         ts.createIdentifier(exporter)
       ),
     ),
-    ts.createStringLiteral(path)
+    ts.createStringLiteral(modulePath)
   )
 }
 
@@ -91,9 +99,9 @@ export function makeCommandImportDeclarationNode(exporter: string, outputSourceF
   )
 }
 
-function makeRefImportDeclarationNode(outputSourceFile: SourceFile, ref: NodeSourceFileInfoMap): ts.ImportDeclaration[] {
+function makeRefImportDeclarationNode(outputSourceFile: SourceFile, result: TransformResult): ts.ImportDeclaration[] {
   const acc: ReturnType<typeof makeRefImportDeclarationNode> = []
-  ref.forEach(({ default: def, named }, sourceFile) => {
+  result.ref.forEach(({ default: def, named }, sourceFile) => {
     const filePath = outputSourceFile.getRelativePathAsModuleSpecifierTo(sourceFile)
     acc.push(
       ts.createImportDeclaration(
@@ -268,12 +276,12 @@ function makeHandler(result: TransformResult): ts.ArrowFunction {
                   undefined
                 ),
                 ...makePositionalBindingNodes(),
-                ts.createBindingElement(
+                ...(options.length ? [ts.createBindingElement(
                   ts.createToken(ts.SyntaxKind.DotDotDotToken),
                   undefined,
                   ts.createIdentifier('options'),
                   undefined
-                )
+                )] : [])
               ]
             ),
             undefined,
@@ -292,7 +300,7 @@ function makeHandler(result: TransformResult): ts.ArrowFunction {
         undefined, 
         [
           ...makePositionalIdentifierNodes(),
-          ts.createIdentifier('options')
+          ...(options.length ? [ts.createIdentifier('options')] : [])
         ]
       )
     )
