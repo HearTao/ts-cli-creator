@@ -6,14 +6,13 @@
 
 _Yet another cli generator based TypeScript code_
 
-_`npm i -D ts-cli`_
+_`npm i -g ts-cli`_
 
 </div>
 
 <br />
 
-
-## Example
+## Usage
 
 The entry file:
 
@@ -29,17 +28,17 @@ function command(param: string, options: Options): void {
 export default command
 ```
 
-Generate `cli.ts` file:
+Generated `cli.ts` file:
 
 ```ts
 import * as yargs from 'yargs'
-import command from './command'
+import handler from './handler'
 
-export default function main(): void {
+export default async function main(): Promise<void> {
     yargs
         .strict()
         .command(
-            '$0 <param> [options]', '', 
+            '$0 <param> [...options]', '', 
             yargs => {
                 return yargs
                     .positional('param', { type: string })
@@ -47,9 +46,8 @@ export default function main(): void {
             },
             args => {
                 const { _, $0, param, ...options } = args
-                if(undefined === param) 
-                    throw new Error(`Argument param was required`)
-                command(param, options)
+                if(undefined === param) throw new TypeError(`Argument param was required`)
+                handler(param, options)
             })
         .help()
         .alias('help', 'h')
@@ -57,50 +55,53 @@ export default function main(): void {
 }
 ```
 
-## Generate
+## Generator
 
 ### Genreate command
 
 **ts-cli** generate a yargs commander from function declaration.
 
-#### 1. Transform parameters to command required positional arguments
+#### 1. Transform function parameters to commander required positional arguments
 
 ```ts
 function command(foo: string, bar: number) {}
 ```
 
-Transform to:
+Will transform to:
 
 ```ts
-.command(`$0 <foo>`, ``, 
-    yargs => yargs
-        .positional(`foo`, { type: string })
-        .positional(`bar`, { type: number}),
+yargs.command(`$0 <foo>`, ``, 
+    yargs => {
+        return yargs
+            .positional(`foo`, { type: string })
+            .positional(`bar`, { type: number})
+    },
     args => {
         const { _, $0, foo, bar } = args
         if(undefined === foo) 
             throw new TypeError(`Argument "foo" was required`)
         if(undefined === bar) 
             throw new TypeError(`Argument "bar" was required`)
+        handler(foo, bar)
     }
 )
 ```
 
-Supports positional types:
+Supports positional argument types:
 
 | Typescript Types | Yargs Options |
 |------|-------|
 | `string` | `{ type: 'string' }` |
 | `number` | `{ type: 'number' }` |
 | `boolean` | `{ type: 'boolean' }` |
-| `enum E(string iterial)` | `{ type: 'string', choices: [ ...(members of E) ] }` |
+| `enum E(string iterial only)` | `{ choices: E[] }` |
 
 
-#### 2. Transform description from function declaration JSDocs
+#### 2. Transform JSDoc parameter description to commander description
 
 ```ts
 /**
- * Description for command
+ * Description for commander
  */
 function command() {}
 ```
@@ -108,15 +109,23 @@ function command() {}
 Transform to:
 
 ```ts
-.command(`$0`, `Description for command`)
+yargs.command(`$0`, `Description for command`)
 ```
 
 
 ### Generate options
 
-when the command last param matched `/options?/`, and type was interface declaration. **ts-cli** will generate a options for you. see below: 
+When the name of function last param matched `/options?/`, and type as interface declaration. like:
 
-#### 1. Transform interface properties to command options
+```ts
+interface Options {}
+function command(param: string, options: Options) {}
+//                                ^~~~~ matched /options?/
+```
+
+**ts-cli** will generate yargs options for you. see below: 
+
+#### 1. Transform interface properties to commander options
 
 ```ts
 interface Options {
@@ -127,7 +136,7 @@ interface Options {
 Transform to:
 
 ```ts
-.option(`foo`, { type: `string` })
+yargs.option(`foo`, { type: `string` })
 ```
 
 Supports options types:
@@ -140,10 +149,10 @@ Supports options types:
 | `string[]` | `{ type: 'string', array: true }` |
 | `number[]` | `{ type: 'number', array: true }` |
 | `boolean[]` | `{ type: 'boolean', array: true }` |
-| `enum E(string iterial)` | `{ type: 'string', choices: [ ...(members of E) ] }` |
+| `enum E(string iterial only)` | `{ choices: E[] }` |
 
 
-#### 2. Transform description from interface property JSDoc description 
+#### 2. Transform JSDoc interface properties comments to options description
 
 ```ts
 interface Options {
@@ -161,12 +170,13 @@ Transform to:
 })
 ```
 
-#### 3. Transform @alias, @default, @demandOption from property JSDoc
+#### 3. Transform JSDoc custom tags @alias, @default, @demandOption to options properties
 
 ```ts
 interface Options {
     /** 
      * @default 42
+     * @demandOption
      */
     foo: number,
     /**
@@ -182,7 +192,8 @@ Transform to:
 ```ts
 .option(`foo`, {
     type: `number`,
-    default: 42
+    default: 42,
+    demandOption: true
 })
 .option(`bar`, {
     type: `string`,
@@ -191,10 +202,61 @@ Transform to:
 })
 ```
 
-## Options
+Supports options properties:
 
-| Name | Description | Type | Default | 
+| JSDoc tag | Yargs option |
+|------|-------|
+| `@alias` | alias |
+| `@default` | default |
+| `@demandOption` | demandOption |
+| `@require` | demandOption |
+| `@required` | demandOption |
+
+## Cli usage
+
+### output content to terminal
+
+```sh
+ts-cli ./src/handler.ts
+```
+
+### write to file
+
+```sh
+ts-cli ./src/handler.ts -o ./cli.ts
+```
+
+Generate file to `./src/cli.ts`. The output path relative entry directory path if not use absolute path.
+
+### read data from pipe
+
+```sh
+cat ./src/handler.ts | ts-cli
+```
+
+or
+
+```sh
+echo function add(a:number,b:number){} | ts-cli
+```
+
+> Warning. this mode will inject code to output content replace require entry module
+
+### preview cli message
+
+ts-cli ./src/handler.ts --no-color | ts-node -T
+
+
+## Cli Options
+
+| Name | Description | Type | Default |
 |------|-------|--------|---------|
+| output | Output file path, output to stdout when not set | `string` | `undefined` |
+| json | Output json data | `boolean` | `false` |
+| color | Colourful output with write to stdout | `boolean` | `true` |
+| verbose | Output full infomations | `boolean` | `false` |
+| functionName | Generate Wrapper function name | `string` | `cli` |
+| AsyncFunction | Use async function | `boolean` | `true` |
 | strict | enable strict mode | `boolean` | `true` |
 | helper | global helper options to show helper messages  | `boolean` | `true` |
 | helperAlias | helper options short for 'h'  | `boolean` | `true` |
@@ -202,6 +264,5 @@ Transform to:
 
 ## TODOS
 
-- [ ] Enum supports
 - [ ] Sub commander
 - [ ] Other cli provider, like commander

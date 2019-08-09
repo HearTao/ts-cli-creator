@@ -64,4 +64,4 @@ typings/
 dist
 
 # cli.ts
-src/cli.ts
+# src/cli.ts

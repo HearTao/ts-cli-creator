@@ -1,41 +1,67 @@
-import { ts, Project, printNode } from 'ts-morph'
+import { ts, Project, printNode, SourceFile } from 'ts-morph'
 import * as prettier from 'prettier'
 import * as path from 'path'
 import resolve from './resolver'
 import { transformCommand } from './transformer'
 import render, { RenderOptions } from './render'
-import emit, { EmitOptions } from './emitter'
+import emit, { EmitOptions, Writter, DEFAULT_WRITTER } from './emitter'
 
-type Options = EmitOptions & RenderOptions
+export interface Context {
+  stdin?: boolean
+}
 
-export default function generate(outPath: string, entryPath: string, options: Partial<Options> = {}): void {
+export interface GenerateOptions {
+  output?: string
+}
+
+export type Options =
+  & GenerateOptions
+  & EmitOptions
+  & RenderOptions
+
+export default function generate(entry: string, options: Partial<Options> = {}, context: Context = {}): void {
+  const isOutputToStdout = undefined === options.output
   const project = new Project()
-  const outputSourceFile = project.createSourceFile(outPath, ``, { overwrite: true })
-  const entrySourceFile = project.addExistingSourceFile(entryPath)
+  const { outputSourceFile, entrySourceFile } = getInputAndOutputSourceFile(entry, project, options, Boolean(context.stdin))
   const functionDeclaration = resolve(entrySourceFile)
   if(undefined === functionDeclaration) throw 42 /**@todo sub commit */
-  const result = transformCommand(functionDeclaration)
-  const out = render(result, outputSourceFile, entrySourceFile)
-  emit(outPath, print(out), options)
+  
+  const transformed = transformCommand(functionDeclaration)
+  const renderOptions = {
+    functionName: options.functionName,
+    asyncFunction: options.asyncFunction,
+    strict: options.strict,
+    help: options.help,
+    helpAlias: options.helpAlias,
+    version: options.version,
+  }
+  const out = render(transformed, outputSourceFile, entrySourceFile, renderOptions, context)
+  const result = print(out)
+
+  const emitOptions = {
+    verbose: options.verbose,
+    force: options.force,
+    writer: DEFAULT_WRITTER[isOutputToStdout ? Writter.Log : Writter.FS],
+    json: options.json,
+    color: options.color,
+    from: entry,
+    to: isOutputToStdout ? `STDOUT` : outputSourceFile.getFilePath()
+  }
+  
+  emit(outputSourceFile.getFilePath(), result, emitOptions)
+}
+
+export function getInputAndOutputSourceFile(entry: string, project: Project, options: GenerateOptions, stdin: boolean): { outputSourceFile: SourceFile, entrySourceFile: SourceFile } {
+  const { output = './cli.ts' } = options
+  const entryPath = stdin ? path.resolve('__STDIN__.ts') : path.resolve(entry)
+  const entrySourceFile = stdin ? project.createSourceFile(entryPath, entry) : project.addExistingSourceFile(entryPath)
+  const outputPath = path.isAbsolute(output) ? output : path.resolve(path.dirname(entryPath), output)
+  const outputSourceFile = project.createSourceFile(outputPath, ``, { overwrite: true })
+  return { outputSourceFile, entrySourceFile }
 }
 
 export function print(nodes: ts.Node | ts.Node[], options: prettier.Options = {}): string {
   const ns = Array.isArray(nodes) ? nodes : [ nodes ]
   const code = ns.map(node => printNode(node)).join(`\n`)
   return prettier.format(code, { parser: 'typescript', ...options })
-}
-
-export function getRelativeFilePath(outputPath: string, entryPath: string): string {
-  if(!path.isAbsolute(outputPath) || !path.isAbsolute(entryPath)) throw makeNotAbsolutePathError()
-  const outputDirPath = path.dirname(outputPath)
-  const entryDirPath = path.dirname(entryPath)
-  const entryBaseName = path.basename(entryPath, path.extname(entryPath))
-  const entryEraseIndexName = `index` === entryBaseName ? '' : entryBaseName
-  const relativePath = path.relative(outputDirPath, entryDirPath).replace(/\\/g, '\/')
-  const dotifyPath = '' === relativePath ? '.' : relativePath
-  return dotifyPath + '/' + entryEraseIndexName
-}
-
-function makeNotAbsolutePathError(): Error {
-  throw new Error(`The file path should be absolute path`)
 }

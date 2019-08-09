@@ -1,8 +1,0 @@
-// Jest Snapshot v1, https://goo.gl/fbAQLP
-
-exports[`makeWrapper() basic 1`] = `
-"import * as yargs from \\"yargs\\";
-import command from \\"./\\";
-export default function main(): void {}
-"
-`;

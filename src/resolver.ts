@@ -6,6 +6,7 @@ export const COMMAND_JSDOC_TAG = `command`
 export default function resolve(sourceFile: SourceFile): FunctionDeclaration {
   const functionDeclarations = sourceFile.getFunctions()
   if(0 === functionDeclarations.length) throw makeNoFunctionError()
+  if(1 === functionDeclarations.length) return functionDeclarations[0]
   const exportedFunctionDeclarations = getExportedFunctionDeclarations(functionDeclarations)
   if(0 === exportedFunctionDeclarations.length) throw makeNoExportedFunctionError()
   else if(1 === exportedFunctionDeclarations.length) return exportedFunctionDeclarations[0]
