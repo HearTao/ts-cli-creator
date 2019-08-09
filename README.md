@@ -242,7 +242,7 @@ echo function add(a:number,b:number){} | ts-cli
 
 ### preview cli message
 
-ts-cli ./src/handler.ts | ts-node --skip-project
+ts-cli ./src/handler.ts --no-color | ts-node -T
 
 
 ## Cli Options
