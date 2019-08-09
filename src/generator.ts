@@ -12,8 +12,6 @@ export interface Context {
 
 export interface GenerateOptions {
   output?: string
-  bin?: boolean
-  run?: boolean
 }
 
 export type Options =
@@ -29,8 +27,15 @@ export default function generate(entry: string, options: Partial<Options> = {}, 
   if(undefined === functionDeclaration) throw 42 /**@todo sub commit */
   
   const transformed = transformCommand(functionDeclaration)
-  
-  const out = render(transformed, outputSourceFile, entrySourceFile, {}, context)
+  const renderOptions = {
+    functionName: options.functionName,
+    asyncFunction: options.asyncFunction,
+    strict: options.strict,
+    help: options.help,
+    helpAlias: options.helpAlias,
+    version: options.version,
+  }
+  const out = render(transformed, outputSourceFile, entrySourceFile, renderOptions, context)
   const result = print(out)
 
   const emitOptions = {

@@ -7,8 +7,6 @@ export interface Options {
    * @alias o
    */
   output?: string
-  bin?: boolean
-  run?: boolean
   /**
    * Force override output file content when file already exists, request Y/n when not set
    */
@@ -25,6 +23,30 @@ export interface Options {
    * Output full infomations
    */
   verbose?: boolean
+  /**
+   * Generate Wrapper function name, default to 'cli'
+   */
+  functionName?: string
+  /**
+   * Use async function, default to true
+   */
+  AsyncFunction?: boolean
+  /**
+   * Enable strict mode, default true
+   */
+  strict?: boolean
+  /**
+   * Enable --help opiotn, default true
+   */
+  help?: boolean
+  /**
+   * Enable -h alias for helper, default true
+   */
+  helpAlias?: boolean
+  /**
+   * Enable --version option, default true
+   */
+  version?: boolean
 }
 
 /**
