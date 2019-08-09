@@ -206,15 +206,15 @@ Supports options properties:
 
 | JSDoc tag | Yargs option |
 |------|-------|
-| @alias | alias |
-| @default | default |
-| @demandOption | demandOption |
-| @require | demandOption |
-| @required | demandOption |
+| `@alias` | alias |
+| `@default` | default |
+| `@demandOption` | demandOption |
+| `@require` | demandOption |
+| `@required` | demandOption |
 
 ## Cli usage
 
-### output content to stdout
+### output content to terminal
 
 ```sh
 ts-cli ./src/handler.ts
@@ -223,12 +223,12 @@ ts-cli ./src/handler.ts
 ### write to file
 
 ```sh
-ts-cli ./src/handler.ts ./cli.ts
+ts-cli ./src/handler.ts -o ./cli.ts
 ```
 
-Will generate file to `./src/cli.ts`
+Generate file to `./src/cli.ts`. The output path relative entry directory path if not use absolute path.
 
-### read entry data from stdio
+### read data from pipe
 
 ```sh
 cat ./src/handler.ts | ts-cli
@@ -240,6 +240,8 @@ or
 echo function add(a:number,b:number){} | ts-cli
 ```
 
+> Warning. this mode will inject code to output content replace require entry module
+
 ### preview cli message
 
 ts-cli ./src/handler.ts --no-color | ts-node -T
@@ -250,6 +252,11 @@ ts-cli ./src/handler.ts --no-color | ts-node -T
 | Name | Description | Type | Default |
 |------|-------|--------|---------|
 | output | Output file path, output to stdout when not set | `string` | `undefined` |
+| json | Output json data | `boolean` | `false` |
+| color | Colourful output with write to stdout | `boolean` | `true` |
+| verbose | Output full infomations | `boolean` | `false` |
+| functionName | Generate Wrapper function name | `string` | `cli` |
+| AsyncFunction | Use async function | `boolean` | `true` |
 | strict | enable strict mode | `boolean` | `true` |
 | helper | global helper options to show helper messages  | `boolean` | `true` |
 | helperAlias | helper options short for 'h'  | `boolean` | `true` |

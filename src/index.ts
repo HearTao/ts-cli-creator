@@ -16,7 +16,7 @@ export interface Options {
    */
   json?: boolean
   /**
-   * Output with color when write data to stdout
+   * Colourful output with write to stdout
    */
   color?: boolean
   /**

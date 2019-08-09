@@ -26,7 +26,7 @@ export default async function cli(args: any[]): Promise<void> {
           .option("json", { type: "boolean", description: "Output json data" })
           .option("color", {
             type: "boolean",
-            description: "Output with color when write data to stdout"
+            description: "Colourful output with write to stdout"
           })
           .option("verbose", {
             type: "boolean",
