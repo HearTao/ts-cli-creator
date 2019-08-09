@@ -1,28 +1,27 @@
 import { FunctionDeclaration, Project } from "ts-morph"
-import resolve, { isTaged, sortFunctionDeclarations, getFunctionDeclaration, getExportedFunctionDeclarations, makeNoFunctionError, makeNoExportedFunctionError } from './resolver'
+import resolve, { isTaged, sortFunctionDeclarations, getFunctionDeclaration, getExportedFunctionDeclarations, makeNoFunctionError } from './resolver'
+import { print } from './generator'
 
 describe(`resolve()`, () => {
   test(`throw no function found`, () => {
     const code = ``
-    const project = new Project()
-    const sourceFile = project.createSourceFile(`tmp.ts`, code)
+    const sourceFile = (new Project).createSourceFile(`tmp.ts`, code)
     expect(() => resolve(sourceFile)).toThrowError(makeNoFunctionError())
   })
 
-  test(`throw no export function found`, () => {
-    const code = `function(){}`
-    const project = new Project()
-    const sourceFile = project.createSourceFile(`tmp.ts`, code)
-    expect(() => resolve(sourceFile)).toThrowError(makeNoExportedFunctionError())
+  test(`function`, () => {
+    const code = `function foo(){}`
+    const node = getFunctionDecl(code)
+    const sf = (new Project).createSourceFile(`tmp.ts`, code)
+    const resolved = print(resolve(sf).compilerNode)
+    expect(resolved).toBe(print(node.compilerNode))
   })
 
-  test(`resolve function`, () => {
+  test(`function exported`, () => {
     const code = `export function foo() {}`
-    const project = new Project()
-    const sourceFile = project.createSourceFile(`tmp.ts`, code)
+    const sourceFile = (new Project).createSourceFile(`tmp.ts`, code)
     const resolved = resolve(sourceFile)
-    if(undefined === resolved) throw 42
-    expect(resolved.getName()).toBe(`foo`)
+    expect(print(resolved.compilerNode)).toBe(print(getFunctionDecl(code).compilerNode))
   })
 })
 

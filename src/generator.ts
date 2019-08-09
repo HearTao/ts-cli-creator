@@ -24,8 +24,7 @@ export type Options =
 export default function generate(entry: string, options: Partial<Options> = {}, context: Context = {}): void {
   const isOutputToStdout = undefined === options.output
   const project = new Project()
-  const { outputPath, entrySourceFile } = resolveEntry(entry, project, options, Boolean(context.stdin))
-  const outputSourceFile = project.createSourceFile(outputPath, ``, { overwrite: true })
+  const { outputSourceFile, entrySourceFile } = getInputAndOutputSourceFile(entry, project, options, Boolean(context.stdin))
   const functionDeclaration = resolve(entrySourceFile)
   if(undefined === functionDeclaration) throw 42 /**@todo sub commit */
   
@@ -41,19 +40,19 @@ export default function generate(entry: string, options: Partial<Options> = {}, 
     json: options.json,
     color: options.color,
     from: entry,
-    to: isOutputToStdout ? `STDOUT` : outputPath
+    to: isOutputToStdout ? `STDOUT` : outputSourceFile.getFilePath()
   }
   
-  emit(outputPath, result, emitOptions)
+  emit(outputSourceFile.getFilePath(), result, emitOptions)
 }
 
-function resolveEntry(entry: string, project: Project, options: GenerateOptions, stdin: boolean): { outputPath: string, entrySourceFile: SourceFile } {
+export function getInputAndOutputSourceFile(entry: string, project: Project, options: GenerateOptions, stdin: boolean): { outputSourceFile: SourceFile, entrySourceFile: SourceFile } {
   const { output = './cli.ts' } = options
   const entryPath = stdin ? path.resolve('__STDIN__.ts') : path.resolve(entry)
-  const context = stdin ? entryPath : path.dirname(entryPath)
-  const outputPath = path.isAbsolute(output) ? output : path.resolve(context, output)
   const entrySourceFile = stdin ? project.createSourceFile(entryPath, entry) : project.addExistingSourceFile(entryPath)
-  return { outputPath, entrySourceFile }
+  const outputPath = path.isAbsolute(output) ? output : path.resolve(path.dirname(entryPath), output)
+  const outputSourceFile = project.createSourceFile(outputPath, ``, { overwrite: true })
+  return { outputSourceFile, entrySourceFile }
 }
 
 export function print(nodes: ts.Node | ts.Node[], options: prettier.Options = {}): string {

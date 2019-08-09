@@ -187,13 +187,13 @@ export function makePositionalCommandString(result: TransformResult): ts.StringL
   return ts.createStringLiteral(acc.join(` `))
 }
 
-function makeBuilder(result: TransformResult): ts.ArrowFunction {
+export function makeBuilder(result: TransformResult): ts.ArrowFunction {
   const { positionals, options } = result
+
   const acc: ts.CallExpression[] = []
   positionals.forEach(([, call ]) => acc.push(call))
   options.forEach(call => acc.push(call))
-
-  const callNodes = generateCallableChain(acc, ts.createIdentifier(`yargs`))
+  const callExpr = generateCallableChain(acc, ts.createIdentifier(`yargs`))
 
   const node = 
   ts.createArrowFunction(
@@ -215,7 +215,7 @@ function makeBuilder(result: TransformResult): ts.ArrowFunction {
     ts.createBlock(
       [
         ts.createReturn(
-          callNodes
+          callExpr
         )
       ], 
       true
@@ -225,7 +225,7 @@ function makeBuilder(result: TransformResult): ts.ArrowFunction {
   return node
 }
 
-function makeHandler(result: TransformResult): ts.ArrowFunction {
+export function makeHandler(result: TransformResult): ts.ArrowFunction {
   const { positionals, options } = result
   const acc: ts.CallExpression[] = []
   positionals.forEach(([, call ]) => acc.push(call))
@@ -324,7 +324,7 @@ function makeHandler(result: TransformResult): ts.ArrowFunction {
   }
 }
 
-export function makeArrowFunctionNode(iden: string, body: ts.Statement[]): ts.ArrowFunction {
+export function makeArrowFunctionNode(iden: string, body: ts.Statement[] = []): ts.ArrowFunction {
   return ts.createArrowFunction(
     undefined,
     undefined,
