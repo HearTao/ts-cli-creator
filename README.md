@@ -2,11 +2,11 @@
 
 <div align=center>
 
-# ts-cli
+# ts-cli-creator
 
 _Yet another cli generator based TypeScript code_
 
-_`npm i -g ts-cli`_
+_`npm i -g ts-cli-creator`_
 
 </div>
 
@@ -14,7 +14,11 @@ _`npm i -g ts-cli`_
 
 ## Usage
 
-The entry file:
+```sh
+ts-cli-creator <entry>
+```
+
+Given the entry file:
 
 ```ts
 export interface Options {
@@ -28,7 +32,7 @@ function command(param: string, options: Options): void {
 export default command
 ```
 
-Generated `cli.ts` file:
+Will generate:
 
 ```ts
 import * as yargs from 'yargs'
@@ -59,7 +63,7 @@ export default async function main(): Promise<void> {
 
 ### Genreate command
 
-**ts-cli** generate a yargs commander from function declaration.
+**ts-cli-creator** generate a yargs commander from function declaration.
 
 #### 1. Transform function parameters to commander required positional arguments
 
@@ -67,7 +71,7 @@ export default async function main(): Promise<void> {
 function command(foo: string, bar: number) {}
 ```
 
-Will transform to:
+Transform to:
 
 ```ts
 yargs.command(`$0 <foo>`, ``, 
@@ -120,10 +124,9 @@ When the name of function last param matched `/options?/`, and type as interface
 ```ts
 interface Options {}
 function command(param: string, options: Options) {}
-//                                ^~~~~ matched /options?/
 ```
 
-**ts-cli** will generate yargs options for you. see below: 
+**ts-cli-creator** will generate yargs options for you:
 
 #### 1. Transform interface properties to commander options
 
@@ -217,13 +220,13 @@ Supports options properties:
 ### output content to terminal
 
 ```sh
-ts-cli ./src/handler.ts
+ts-cli-creator ./src/handler.ts
 ```
 
 ### write to file
 
 ```sh
-ts-cli ./src/handler.ts -o ./cli.ts
+ts-cli-creator ./src/handler.ts -o ./cli.ts
 ```
 
 Generate file to `./src/cli.ts`. The output path relative entry directory path if not use absolute path.
@@ -231,21 +234,22 @@ Generate file to `./src/cli.ts`. The output path relative entry directory path i
 ### read data from pipe
 
 ```sh
-cat ./src/handler.ts | ts-cli
+cat ./src/handler.ts | ts-cli-creator
 ```
 
 or
 
 ```sh
-echo function add(a:number,b:number){} | ts-cli
+echo function add(a:number,b:number){} | ts-cli-creator
 ```
 
 > Warning. this mode will inject code to output content replace require entry module
 
 ### preview cli message
 
-ts-cli ./src/handler.ts --no-color | ts-node -T
-
+```
+ts-cli-creator ./src/handler.ts --no-color | ts-node -T
+```
 
 ## Cli Options
 
@@ -265,4 +269,5 @@ ts-cli ./src/handler.ts --no-color | ts-node -T
 ## TODOS
 
 - [ ] Sub commander
+- [ ] Custom type parser
 - [ ] Other cli provider, like commander

@@ -1,8 +1,9 @@
 {
-  "name": "ts-cli",
+  "name": "ts-cli-creator",
   "version": "0.0.1",
   "description": "Yet another cli generator based TypeScript code",
   "main": "index.js",
+  "bin": "./bin/ts-cli-creator",
   "scripts": {
     "start": "tsc -w",
     "test": "jest"
@@ -28,10 +29,7 @@
     "@types/prettier": "^1.18.0",
     "@types/prompts": "^2.0.1",
     "@types/yargs": "^13.0.0",
-    "bin-file-gen": "0.0.4",
     "jest": "^24.8.0",
-    "readme-file-gen": "0.0.1",
-    "test-dir-gen": "0.0.1",
     "ts-jest": "^24.0.2",
     "ts-node": "^8.3.0",
     "typescript": "^3.5.3"
