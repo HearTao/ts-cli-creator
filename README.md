@@ -74,7 +74,7 @@ function command(foo: string, bar: number) {}
 Transform to:
 
 ```ts
-yargs.command(`$0 <foo>`, ``, 
+yargs.command(`$0 <foo> <bar>`, ``, 
     yargs => {
         return yargs
             .positional(`foo`, { type: string })
@@ -93,7 +93,7 @@ yargs.command(`$0 <foo>`, ``,
 
 Supports positional argument types:
 
-| Typescript Types | Yargs Options |
+| Typescript Types | Yargs Positional Options |
 |------|-------|
 | `string` | `{ type: 'string' }` |
 | `number` | `{ type: 'number' }` |
@@ -119,7 +119,7 @@ yargs.command(`$0`, `Description for command`)
 
 ### Generate options
 
-When the name of function last param matched `/options?/`, and type as interface declaration. like:
+When the name of function last param matched `/^options?$/`, and type was interface declaration. like:
 
 ```ts
 interface Options {}
@@ -229,7 +229,7 @@ ts-cli-creator ./src/handler.ts
 ts-cli-creator ./src/handler.ts -o ./cli.ts
 ```
 
-Generate file to `./src/cli.ts`. The output path relative entry directory path if not use absolute path.
+Generate file to `./src/cli.ts`. The output path relative entry directory path when not use absolute path.
 
 ### read data from pipe
 
@@ -243,12 +243,19 @@ or
 echo function add(a:number,b:number){} | ts-cli-creator
 ```
 
-> Warning. this mode will inject code to output content replace require entry module
+> Warning. this mode will inline the code to output content replace require the entry module
 
 ### preview cli message
 
 ```
-ts-cli-creator ./src/handler.ts --no-color | ts-node -T
+ts-cli-creator ./src/handler.ts --no-color | ts-node -T --skip-project
+```
+
+### run cli
+
+```
+ts-cli-creator ./src/handler.ts --no-color > ./cli.ts
+ts-node -T --skip-project ./cli.ts
 ```
 
 ## Cli Options
@@ -260,7 +267,7 @@ ts-cli-creator ./src/handler.ts --no-color | ts-node -T
 | color | Colourful output with write to stdout | `boolean` | `true` |
 | verbose | Output full infomations | `boolean` | `false` |
 | functionName | Generate Wrapper function name | `string` | `cli` |
-| AsyncFunction | Use async function | `boolean` | `true` |
+| asyncFunction | Use async function | `boolean` | `true` |
 | strict | enable strict mode | `boolean` | `true` |
 | helper | global helper options to show helper messages  | `boolean` | `true` |
 | helperAlias | helper options short for 'h'  | `boolean` | `true` |
