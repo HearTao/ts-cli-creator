@@ -30,7 +30,7 @@ export interface Options {
   /**
    * Use async function, default to true
    */
-  AsyncFunction?: boolean
+  asyncFunction?: boolean
   /**
    * Enable strict mode, default true
    */
