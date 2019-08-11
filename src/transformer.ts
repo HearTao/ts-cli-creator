@@ -1,12 +1,13 @@
 import * as path from 'path'
 import { ts, JSDoc, JSDocTag, InterfaceDeclaration, JSDocableNode, Type, Node, EnumDeclaration, FunctionDeclaration, ParameterDeclaration, SourceFile } from 'ts-morph'
+import { intersection } from 'lodash'
 
 export type TransformResult = {
   name: string
   ref: NodeSourceFileInfoMap,
   description: ts.StringLiteral
   positionals: [ string, ts.CallExpression ][],
-  options: ts.CallExpression[]
+  options: [ string, ts.CallExpression ][]
 }
 
 type TransformCallResult = {
@@ -50,10 +51,13 @@ const enum CliOptionsJSDocTag {
 }
 
 
-export function transformOption(interfaceDecl: InterfaceDeclaration): [ ts.CallExpression[], NodeSourceFileInfoMap ] {
+export function transformOption(interfaceDecl: InterfaceDeclaration): [ [ string, ts.CallExpression ][], NodeSourceFileInfoMap ] {
   const { results, ref } = makeOptionsProperties(interfaceDecl)
   return [ 
-    results.map(result => makeCallableNode(`option`, result)),
+    results.map(result => ([
+      result.name,
+      makeCallableNode(`option`, result)
+    ])),
     ref
   ]
 }
@@ -185,6 +189,8 @@ export function transformCommand(decl: FunctionDeclaration): TransformResult {
   const description = getCommandDescription(decl)
   const name = getFunctionDeclarationDefaultName(decl)
   const ref = makeModuleRefencesTable(name, decl, positionalRef, optionsRef)
+
+  assertPositionalAndOptionsNameConflict(positionals, options)
 
   return {
     name,
@@ -356,6 +362,14 @@ function makeModuleRefencesTable(name: string, decl: FunctionDeclaration, ...inf
     }
     tb.push(node)
   }
+}
+
+export function assertPositionalAndOptionsNameConflict(positional: [ string, ts.CallExpression ][], options: [ string, ts.CallExpression ][]): void {
+  const positionalsArray = positional.map(([ name ]) => name)
+  const optionsArray = options.map(([ name ]) => name)
+  const duplicate = intersection(positionalsArray, optionsArray)
+  if(0 === duplicate.length) return
+  throw new Error(`Conflict:\n${duplicate.map(name => `  - the name "${name}" was both used for positionals and options`).join('\n')}`)
 }
 
 // #endregion
