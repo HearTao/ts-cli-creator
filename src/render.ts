@@ -192,7 +192,7 @@ export function makeBuilder(result: TransformResult): ts.ArrowFunction {
 
   const acc: ts.CallExpression[] = []
   positionals.forEach(([, call ]) => acc.push(call))
-  options.forEach(call => acc.push(call))
+  options.forEach(([, call]) => acc.push(call))
   const callExpr = generateCallableChain(acc, ts.createIdentifier(`yargs`))
 
   const node = 
@@ -229,7 +229,7 @@ export function makeHandler(result: TransformResult): ts.ArrowFunction {
   const { positionals, options } = result
   const acc: ts.CallExpression[] = []
   positionals.forEach(([, call ]) => acc.push(call))
-  options.forEach(call => acc.push(call))
+  options.forEach(([, call ]) => acc.push(call))
 
   return makeArrowFunctionNode(`args`, [
     makeDeconstructNode(),

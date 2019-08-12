@@ -1,8 +1,8 @@
-import * as vm from 'vm'
-import * as yargs from 'yargs'
-import { Project, ts, SourceFile, printNode, FunctionDeclaration, ParameterDeclaration, InterfaceDeclaration, PropertySignature } from 'ts-morph'
-import { transformCommand, transformOption, makeUnsupportsTypeError, parseExprStmt, makeCommandTypeExpression, getJSDocTags, getJSDoc, getJSDocTag, makeCommandDescriptionExpression, makeCommandProperties, getCommandDescription, makeOptionsTypeExpression, makeOptionsDescriptionExpression, makeOptionJSDocTagExpression, DeclarationExportType } from './transformer'
-import { generateCallableChain } from './render'
+// import * as vm from 'vm'
+// import * as yargs from 'yargs'
+import { Project, ts, printNode, FunctionDeclaration, ParameterDeclaration, InterfaceDeclaration, PropertySignature } from 'ts-morph'
+import { transformCommand, makeUnsupportsTypeError, parseExprStmt, makeCommandTypeExpression, getJSDocTags, getJSDoc, getJSDocTag, makeCommandDescriptionExpression, makeCommandProperties, getCommandDescription, makeOptionsTypeExpression, makeOptionsDescriptionExpression, makeOptionJSDocTagExpression, DeclarationExportType, assertPositionalAndOptionsNameConflict } from './transformer'
+// import { generateCallableChain } from './render'
 
 
 describe(`transformCommand()`, () => {
@@ -194,6 +194,25 @@ function(foo, bar: number) {}`
 export enum E { A = 'a' }; function E(foo: E){}`
       const node = getFunctionDecl(code)
       expect(() => transformCommand(node)).toThrow()
+    })
+  })
+
+  describe(`assertPositionalAndOptionsNameConflict()`, () => {
+    test(`conflict`, () => {
+      const fn = () => assertPositionalAndOptionsNameConflict([
+        [`foo`, null as any],
+      ], [
+        [`foo`, null as any],
+      ])
+      expect(fn).toThrow()
+    })
+    test(`no conflict`, () => {
+      const fn = () => assertPositionalAndOptionsNameConflict([
+        [`foo`, null as any],
+      ], [
+        [`bar`, null as any],
+      ])
+      expect(fn).not.toThrow()
     })
   })
 })
@@ -568,13 +587,13 @@ function(){}`
 // #endregion
 
 
-function runOption(code: string): [ ts.CallExpression[], SourceFile ] {
-  const project = new Project({
-    skipFileDependencyResolution: true
-  })
-  const sourceFile = project.createSourceFile(`tmp.ts`, code)
-  return [ transformOption(sourceFile.getInterfaces()[0])[0], sourceFile ]
-}
+// function runOption(code: string): [ ts.CallExpression[], SourceFile ] {
+//   const project = new Project({
+//     skipFileDependencyResolution: true
+//   })
+//   const sourceFile = project.createSourceFile(`tmp.ts`, code)
+//   return [ transformOption(sourceFile.getInterfaces()[0])[0], sourceFile ]
+// }
 
 function getFunctionDecl(code: string): FunctionDeclaration {
   const project = new Project({
@@ -604,45 +623,45 @@ function getInterfaceProperty(code: string, index: number = 0): PropertySignatur
   return props[index]
 }
 
-export function runYargs(code: string, args: string = '', override?: (code: string) => string): yargs.Arguments {
-  const out = vm.runInThisContext(makeCode(code, args))(require)
-  console.log(out)
-  return out
+// export function runYargs(code: string, args: string = '', override?: (code: string) => string): yargs.Arguments {
+//   const out = vm.runInThisContext(makeCode(code, args))(require)
+//   console.log(out)
+//   return out
 
-  function makeCode(code: string, args: string): string {
-    const [ nodes, sourceFile ] = runOption(code)
+//   function makeCode(code: string, args: string): string {
+//     const [ nodes, sourceFile ] = runOption(code)
 
-    const callableChainNodes = generateCallableChain(
-      nodes, 
-      ts.createCall(
-        ts.createIdentifier('require'), 
-        undefined, [
-          ts.createStringLiteral('yargs')
-        ]
-      )
-    )
+//     const callableChainNodes = generateCallableChain(
+//       nodes, 
+//       ts.createCall(
+//         ts.createIdentifier('require'), 
+//         undefined, [
+//           ts.createStringLiteral('yargs')
+//         ]
+//       )
+//     )
     
-    const constructNode = 
-    ts.createCall(
-      ts.createPropertyAccess(
-        callableChainNodes,
-        ts.createIdentifier('parse')
-      ),
-      undefined,
-      [
-        ts.createArrayLiteral(
-          args.split(' ')
-            .map(arg => arg.trim()).filter(Boolean)
-            .map(arg => ts.createStringLiteral(arg)),
-          false
-        )
-      ]
-    )
+//     const constructNode = 
+//     ts.createCall(
+//       ts.createPropertyAccess(
+//         callableChainNodes,
+//         ts.createIdentifier('parse')
+//       ),
+//       undefined,
+//       [
+//         ts.createArrayLiteral(
+//           args.split(' ')
+//             .map(arg => arg.trim()).filter(Boolean)
+//             .map(arg => ts.createStringLiteral(arg)),
+//           false
+//         )
+//       ]
+//     )
     
-    const bodyCode: string = ts.createPrinter().printNode(ts.EmitHint.Unspecified, constructNode, sourceFile as any)
-    const resultCode: string = `(require)=>{\n return ${bodyCode}\n}`
-    const out: string = `function` === typeof override ? override(resultCode) : resultCode
-    console.log(out)
-    return out
-  }
-}
+//     const bodyCode: string = ts.createPrinter().printNode(ts.EmitHint.Unspecified, constructNode, sourceFile as any)
+//     const resultCode: string = `(require)=>{\n return ${bodyCode}\n}`
+//     const out: string = `function` === typeof override ? override(resultCode) : resultCode
+//     console.log(out)
+//     return out
+//   }
+// }
