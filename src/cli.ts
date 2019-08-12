@@ -2,15 +2,16 @@ import * as yargs from "yargs";
 import main from "./index";
 import * as getStdin from 'get-stdin';
 export default async function cli(args: string[] = process.argv.slice(2)): Promise<void> {
-  let stdin: string = await getStdin()
-  if('' !== stdin.trim()) {
+  let stdin = (await getStdin()).trim()
+  if('' !== stdin) {
     yargs
     .strict()
     .command(
-      "$0 [...options]",
+      "$0 [entry] [...options]",
       "Yet another cli generator based TypeScript code",
       yargs => {
         return yargs
+          .positional("entry", { type: "string", description: "entry file" })
           .option("output", {
             type: "string",
             description: "Output file path, output to stdout when not set",
@@ -56,9 +57,9 @@ export default async function cli(args: string[] = process.argv.slice(2)): Promi
           });
       },
       args => {
-        const { _, $0, ...options } = args;
-        main.__CLICONTEXT__ = { stdin: true }
-        main(stdin.trim(), options);
+        const { _, $0, entry, ...options } = args;
+        main.__CLICONTEXT__ = { stdin: undefined === entry }
+        main(entry || stdin, options);
       }
     )
     .help()
