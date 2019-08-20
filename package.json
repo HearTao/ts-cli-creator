@@ -6,6 +6,7 @@
   "bin": "./bin/ts-cli-creator",
   "scripts": {
     "start": "tsc -w",
+    "build": "tsc",
     "test": "jest"
   },
   "repository": {
