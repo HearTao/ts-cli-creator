@@ -27,8 +27,8 @@ jobs:
     needs: build
     steps:
       - name: Update Version
-        run: 
-          - npm version from-git
+        run:
+          - npm version `npm view . version`-`git rev-parse --verify --short HEAD`
           - cp package.json dist
       - name: Publish NPM
         run: cd dist && npm publish
