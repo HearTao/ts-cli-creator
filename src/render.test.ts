@@ -158,17 +158,20 @@ describe(`makeWrapper()`, () => {
   describe(`makeWrapperFunctionDeclaration()`, () => {
     test(`default`, () => {
       const resolved = print(makeWrapperFunctionDeclaration([], { ...DEFAULT_RENDER_OPTIONS }))
-      expect(resolved).toBe(`export default async function cli(): Promise<void> {}\n`)
+      expect(resolved).toBe(`export default function cli(args: string[] = process.argv.slice(2)): void {}\n`)
     })
 
     test(`function name`, () => {
       const resolved = print(makeWrapperFunctionDeclaration([], { ...DEFAULT_RENDER_OPTIONS, functionName: `foo` }))
-      expect(resolved).toBe(`export default async function foo(): Promise<void> {}\n`)
+      expect(resolved).toBe(`export default function foo(args: string[] = process.argv.slice(2)): void {}\n`)
     })
 
-    test(`no async`, () => {
-      const resolved = print(makeWrapperFunctionDeclaration([], { ...DEFAULT_RENDER_OPTIONS, asyncFunction: false }))
-      expect(resolved).toBe(`export default function cli(): void {}\n`)
+    test(`async`, () => {
+      const resolved = print(makeWrapperFunctionDeclaration([], { ...DEFAULT_RENDER_OPTIONS, asyncFunction: true }))
+      expect(resolved).toBe(`\
+export default async function cli(
+  args: string[] = process.argv.slice(2)
+): Promise<void> {}\n`)
     })
   })
 
@@ -193,7 +196,7 @@ describe(`makeWrapper()`, () => {
       }))
       expect(resolved).toBe(`\
 import * as yargs from "yargs";
-export default async function cli(): Promise<void> {}
+export default function cli(args: string[] = process.argv.slice(2)): void {}
 `)
     })
 
@@ -217,7 +220,7 @@ export default async function cli(): Promise<void> {}
       }))
       expect(resolved).toBe(`\
 import * as yargs from "yargs";
-export default async function cli(): Promise<void> {}
+export default function cli(args: string[] = process.argv.slice(2)): void {}
 cli();
 `.replace(/"yargs"/, `"${require.resolve(`yargs`).replace(/\\/g, '\\\\')}"`))
     })
@@ -401,8 +404,6 @@ args => {
       expect(resolved).toBe(`\
 args => {
   const { _, $0, foo, bar } = args;
-  if (undefined === foo) throw new TypeError("Argument foo was required");
-  if (undefined === bar) throw new TypeError("Argument bar was required");
   foo(foo, bar);
 };`)
     })
@@ -442,8 +443,6 @@ args => {
       expect(resolved).toBe(`\
 args => {
   const { _, $0, foo, bar, ...options } = args;
-  if (undefined === foo) throw new TypeError("Argument foo was required");
-  if (undefined === bar) throw new TypeError("Argument bar was required");
   foo(foo, bar, options);
 };`)
     })
