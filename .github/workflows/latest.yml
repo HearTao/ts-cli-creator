@@ -26,7 +26,7 @@ jobs:
       - name: Install Dependencies
         run: npm install
       - name: Build
-        run: npm run start
+        run: npm run build
       - name: Generate Bin File
         run: npx bin-file-gen -y
       - name: Update Version
