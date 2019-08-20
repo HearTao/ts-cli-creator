@@ -17,6 +17,7 @@ jobs:
 
   build:
     needs: test
+    runs-on: ubuntu-latest
     steps:
       - name: Build
         run: npm run start
@@ -25,6 +26,7 @@ jobs:
 
   release:
     needs: build
+    runs-on: ubuntu-latest
     steps:
       - name: Update Version
         run: npm version `npm view . version`-`git rev-parse --verify --short HEAD` && cp package.json dist
