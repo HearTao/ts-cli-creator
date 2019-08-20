@@ -24,7 +24,7 @@ export const DEFAULT_RENDER_OPTIONS: RenderOptions = {
   help: true,
   helpAlias: true,
   version: true,
-  asyncFunction: true,
+  asyncFunction: false,
   runnable: false
 }
 
@@ -265,7 +265,6 @@ export function makeHandler(result: TransformResult): ts.ArrowFunction {
 
   return makeArrowFunctionNode(`args`, [
     makeDeconstructNode(),
-    ...makePositionalUndefinedThrowIfNodes(),
     makeCommandApplyNode()
   ])
 
@@ -283,24 +282,6 @@ export function makeHandler(result: TransformResult): ts.ArrowFunction {
   function makePositionalIdentifierNodes(): ts.Identifier[] {
     return positionals.map(([ name ]) => {
       return ts.createIdentifier(name)
-    })
-  }
-
-  function makePositionalUndefinedThrowIfNodes(): ts.IfStatement[] {
-    return positionals.map(([ name ]) => {
-      return ts.createIf(
-        ts.createBinary(
-          ts.createIdentifier('undefined'),
-          ts.createToken(ts.SyntaxKind.EqualsEqualsEqualsToken),
-          ts.createIdentifier(name)
-        ),
-        ts.createThrow(
-          ts.createNew(ts.createIdentifier('TypeError'), undefined, [
-            ts.createStringLiteral(`Argument ${name} was required`)
-          ])
-        ),
-        undefined
-      )
     })
   }
 

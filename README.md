@@ -255,13 +255,23 @@ Or use ts-node:
 ts-cli-creator ./src/handler.ts --no-color --runnable  -- -h | ts-node -T --skip-project ./cli.ts
 ```
 
-See simple example:
+See the simple example:
 
 ```sh
 echo function add(a:number,b:number){console.log(a+b)} | ts-cli-creator --no-color --js -- 1 2
 
 ## will output 3
 ```
+
+<div align=center>
+
+&nbsp;
+
+![Preview](https://user-images.githubusercontent.com/5752902/63343447-88364900-c380-11e9-9b7d-f810a70d0431.gif)
+
+&nbsp;
+
+</div>
 
 ## Cli Options
 
@@ -273,7 +283,7 @@ echo function add(a:number,b:number){console.log(a+b)} | ts-cli-creator --no-col
 | --color | Colourful output with write to stdout | `boolean` | `true` |
 | --verbose | Output full infomations | `boolean` | `false` |
 | --function-name | Generate Wrapper function name | `string` | `cli` |
-| --async-function | Use async function | `boolean` | `true` |
+| --async-function | Use async function | `boolean` | `false` |
 | --runnable | Add main function call at last, default to false | `boolean` | `false` |
 | --strict | enable strict mode | `boolean` | `true` |
 | --helper | global helper options to show helper messages  | `boolean` | `true` |
