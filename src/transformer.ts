@@ -254,7 +254,8 @@ export function makeCommandProperties(params: ParameterDeclaration[]): { results
       name,
       properties: {
         ...typeExpr,
-        ...descExpr
+        ...descExpr,
+        demandOption: ts.createStringLiteral(`true`)
       }
     })
 

@@ -114,7 +114,8 @@ function(foo) {}`
           name: `foo`,
           properties: {
             type: ts.createStringLiteral(`string`),
-            description: ts.createStringLiteral(`desc for foo`)
+            description: ts.createStringLiteral(`desc for foo`),
+            demandOption: ts.createStringLiteral(`true`)
           }
         }
       ])
@@ -135,13 +136,15 @@ function(foo, bar: number) {}`
           name: `foo`,
           properties: {
             type: ts.createStringLiteral(`string`),
-            description: ts.createStringLiteral(`desc for foo`)
+            description: ts.createStringLiteral(`desc for foo`),
+            demandOption: ts.createStringLiteral(`true`)
           }
         },
         { 
           name: `bar`,
           properties: {
-            type: ts.createStringLiteral(`number`)
+            type: ts.createStringLiteral(`number`),
+            demandOption: ts.createStringLiteral(`true`)
           }
         }
       ])

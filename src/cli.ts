@@ -74,7 +74,7 @@ export default async function cli(args: string[] = process.argv.slice(2)): Promi
         "Yet another cli generator based TypeScript code",
         yargs => {
           return yargs
-            .positional("entry", { type: "string", description: "entry file" })
+            .positional("entry", { type: "string", description: "entry file", demandOption: "true" })
             .option("output", {
               type: "string",
               description: "Output file path, output to stdout when not set",
@@ -120,9 +120,7 @@ export default async function cli(args: string[] = process.argv.slice(2)): Promi
             });
         },
         args => {
-          const { _, $0, entry = stdin, ...options } = args;
-          if (undefined === entry)
-            throw new TypeError("Argument entry was required");
+          const { _, $0, entry, ...options } = args;
           main(entry, options);
         }
       )
