@@ -14,6 +14,7 @@ export interface RenderOptions {
   helpAlias: boolean
   version: boolean
   asyncFunction: boolean
+  runnable: boolean
 }
 
 export const DEFAULT_RENDER_OPTIONS: RenderOptions = {
@@ -23,7 +24,8 @@ export const DEFAULT_RENDER_OPTIONS: RenderOptions = {
   help: true,
   helpAlias: true,
   version: true,
-  asyncFunction: true
+  asyncFunction: true,
+  runnable: false
 }
 
 export default function render(result: TransformResult, outputSourceFile: SourceFile, entrySourceFile: SourceFile, options: Partial<RenderOptions> = {}, context: Context): ts.Node[] {
@@ -36,15 +38,13 @@ export default function render(result: TransformResult, outputSourceFile: Source
   if(help) acc.push(ts.createCall(ts.createIdentifier('help'), undefined, []))
   if(helpAlias) acc.push(ts.createCall(ts.createIdentifier('alias'), undefined, [ ts.createStringLiteral('help'), ts.createStringLiteral('h') ]))
   if(version) acc.push(ts.createCall(ts.createIdentifier('version'), undefined, []))
+  acc.push(ts.createCall(ts.createIdentifier('parse'), undefined, [ ts.createIdentifier('args') ]))
 
   const callableChainNodes = generateCallableChain(acc, ts.createIdentifier(lib))
 
   const yargsNode =
   ts.createExpressionStatement(
-    ts.createPropertyAccess(
-      callableChainNodes,
-      ts.createIdentifier(`argv`)
-    )
+    callableChainNodes
   )
   
   return makeWrapper([ yargsNode ], {
@@ -78,11 +78,21 @@ export function makeWrapper(body: ts.Statement[] = [], options: MakeWrapperOptio
 
   nodes.push(makeWrapperFunctionDeclaration(body, options.options))
 
-  if(options.context.stdin) {
-    nodes.push(ts.createCall(ts.createIdentifier(options.options.functionName), undefined, []))
+  if(options.options.runnable || options.context.stdin) {
+    nodes.push(makeCliCallNode(options.options.functionName, options.context.args))
   }
-  
+
   return nodes
+}
+
+export function makeCliCallNode(name: string, args?: string[]): ts.Node {
+  return ts.createCall(
+    ts.createIdentifier(name),
+    undefined,
+    [
+      ...(args ? ts.createArrayLiteral(args.map(arg => ts.createStringLiteral(arg)), false) : [])
+    ]
+  )
 }
 
 export function makeLibImportDeclarationNode(exporter: string, path: string, context: Context): ts.ImportDeclaration {
@@ -152,7 +162,29 @@ export function makeWrapperFunctionDeclaration(body: ts.Statement[] = [], option
     ts.createIdentifier(options.functionName),
     undefined,
     [
-
+      ts.createParameter(
+        undefined,
+        undefined,
+        undefined,
+        ts.createIdentifier(`args`),
+        undefined,
+        ts.createArrayTypeNode(
+          ts.createKeywordTypeNode(ts.SyntaxKind.StringKeyword)
+        ),
+        ts.createCall(
+          ts.createPropertyAccess(
+            ts.createPropertyAccess(
+              ts.createIdentifier(`process`),
+              ts.createIdentifier(`argv`)
+            ),
+            ts.createIdentifier(`slice`)
+          ),
+          undefined,
+          [
+            ts.createNumericLiteral(`2`)
+          ]
+        )
+      )
     ],
     returnType,
     ts.createBlock(body, true)

@@ -1,9 +1,5 @@
-// import * as vm from 'vm'
-// import * as yargs from 'yargs'
 import { Project, ts, printNode, FunctionDeclaration, ParameterDeclaration, InterfaceDeclaration, PropertySignature } from 'ts-morph'
-import { transformCommand, makeUnsupportsTypeError, parseExprStmt, makeCommandTypeExpression, getJSDocTags, getJSDoc, getJSDocTag, makeCommandDescriptionExpression, makeCommandProperties, getCommandDescription, makeOptionsTypeExpression, makeOptionsDescriptionExpression, makeOptionJSDocTagExpression, DeclarationExportType, assertPositionalAndOptionsNameConflict } from './transformer'
-// import { generateCallableChain } from './render'
-
+import { transformCommand, makeUnsupportsTypeError, parseExprStmt, makeCommandTypeExpression, getJSDocTags, getJSDoc, getJSDocTag, makeCommandDescriptionExpression, makeCommandProperties, getCommandDescription, makeOptionsTypeExpression, makeOptionsDescriptionExpression, makeOptionJSDocTagExpression, DeclarationExportType, assertPositionalAndOptionsNameConflict, makeCommandDemandOptionExpression } from './transformer'
 
 describe(`transformCommand()`, () => {
   describe(`makeCommandTypeExpression()`, () => {
@@ -100,6 +96,21 @@ describe(`transformCommand()`, () => {
     })
   })
 
+  describe(`makeCommandDemandOptionExpression()`, () => {
+    test(`required`, () => {
+      const code = `function(foo) {}`
+      const param = getFunctionParameterDecl(code)
+      const resolved = makeCommandDemandOptionExpression(param)
+      expect(resolved).toEqual({ demandOption: ts.createStringLiteral(`true`) })
+    })
+    test(`required`, () => {
+      const code = `function(foo?) {}`
+      const param = getFunctionParameterDecl(code)
+      const resolved = makeCommandDemandOptionExpression(param)
+      expect(resolved).toEqual({})
+    })
+  })
+
   describe(`makeCommandProperties()`, () => {
     test(`single`, () => {
       const code = `\
@@ -114,7 +125,8 @@ function(foo) {}`
           name: `foo`,
           properties: {
             type: ts.createStringLiteral(`string`),
-            description: ts.createStringLiteral(`desc for foo`)
+            description: ts.createStringLiteral(`desc for foo`),
+            demandOption: ts.createStringLiteral(`true`)
           }
         }
       ])
@@ -135,13 +147,15 @@ function(foo, bar: number) {}`
           name: `foo`,
           properties: {
             type: ts.createStringLiteral(`string`),
-            description: ts.createStringLiteral(`desc for foo`)
+            description: ts.createStringLiteral(`desc for foo`),
+            demandOption: ts.createStringLiteral(`true`)
           }
         },
         { 
           name: `bar`,
           properties: {
-            type: ts.createStringLiteral(`number`)
+            type: ts.createStringLiteral(`number`),
+            demandOption: ts.createStringLiteral(`true`)
           }
         }
       ])

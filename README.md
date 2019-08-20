@@ -45,12 +45,11 @@ export default async function main(): Promise<void> {
             '$0 <param> [...options]', '', 
             yargs => {
                 return yargs
-                    .positional('param', { type: string })
+                    .positional('param', { type: string, demandOption: "true" })
                     .option('foo', { type: string })
             },
             args => {
                 const { _, $0, param, ...options } = args
-                if(undefined === param) throw new TypeError(`Argument param was required`)
                 handler(param, options)
             })
         .help()
@@ -68,7 +67,7 @@ export default async function main(): Promise<void> {
 #### 1. Transform function parameters to commander required positional arguments
 
 ```ts
-function command(foo: string, bar: number) {}
+function command(foo: string, bar?: number) {}
 ```
 
 Transform to:
@@ -77,15 +76,11 @@ Transform to:
 yargs.command(`$0 <foo> <bar>`, ``, 
     yargs => {
         return yargs
-            .positional(`foo`, { type: string })
-            .positional(`bar`, { type: number})
+            .positional(`foo`, { type: string, demandOption: "true" })
+            .positional(`bar`, { type: number })
     },
     args => {
         const { _, $0, foo, bar } = args
-        if(undefined === foo) 
-            throw new TypeError(`Argument "foo" was required`)
-        if(undefined === bar) 
-            throw new TypeError(`Argument "bar" was required`)
         handler(foo, bar)
     }
 )
@@ -245,33 +240,45 @@ echo function add(a:number,b:number){} | ts-cli-creator
 
 > Warning. this mode will inline the code to output content replace require the entry module
 
-### preview cli message
+
+### preview cli
+
+You can preview cli message via `--runnable` option and pass raw arguments:
 
 ```
-ts-cli-creator ./src/handler.ts --no-color | ts-node -T --skip-project
+ts-cli-creator ./src/handler.ts --no-color --runnable --js -- -h | node
 ```
 
-### run cli
+Or use ts-node:
 
 ```
-ts-cli-creator ./src/handler.ts --no-color > ./cli.ts
-ts-node -T --skip-project ./cli.ts
+ts-cli-creator ./src/handler.ts --no-color --runnable  -- -h | ts-node -T --skip-project ./cli.ts
+```
+
+See simple example:
+
+```sh
+echo function add(a:number,b:number){console.log(a+b)} | ts-cli-creator --no-color --js -- 1 2
+
+## will output 3
 ```
 
 ## Cli Options
 
 | Name | Description | Type | Default |
 |------|-------|--------|---------|
-| output | Output file path, output to stdout when not set | `string` | `undefined` |
-| json | Output json data | `boolean` | `false` |
-| color | Colourful output with write to stdout | `boolean` | `true` |
-| verbose | Output full infomations | `boolean` | `false` |
-| functionName | Generate Wrapper function name | `string` | `cli` |
-| asyncFunction | Use async function | `boolean` | `true` |
-| strict | enable strict mode | `boolean` | `true` |
-| helper | global helper options to show helper messages  | `boolean` | `true` |
-| helperAlias | helper options short for 'h'  | `boolean` | `true` |
-| version | global version options, show current version  | `boolean` | `true` |
+| --output, -o | Output file path, output to stdout when not set | `string` | `undefined` |
+| --js | Generate js file, base on your tsconfig | `boolean` | `false` |
+| --json | Output json data | `boolean` | `false` |
+| --color | Colourful output with write to stdout | `boolean` | `true` |
+| --verbose | Output full infomations | `boolean` | `false` |
+| --function-name | Generate Wrapper function name | `string` | `cli` |
+| --async-function | Use async function | `boolean` | `true` |
+| --runnable | Add main function call at last, default to false | `boolean` | `false` |
+| --strict | enable strict mode | `boolean` | `true` |
+| --helper | global helper options to show helper messages  | `boolean` | `true` |
+| --helper-alias | helper options short for 'h'  | `boolean` | `true` |
+| --version | global version options, show current version  | `boolean` | `true` |
 
 ## TODOS
 

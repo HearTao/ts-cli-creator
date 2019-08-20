@@ -1,4 +1,4 @@
-import generate from './generator'
+import generate, { Context } from './generator'
 
 
 export interface Options {
@@ -7,6 +7,10 @@ export interface Options {
    * @alias o
    */
   output?: string
+  /**
+   * Generate js file, base on your tsconfig
+   */
+  js?: boolean
   /**
    * Force override output file content when file already exists, request Y/n when not set
    */
@@ -31,6 +35,10 @@ export interface Options {
    * Use async function, default to true
    */
   asyncFunction?: boolean
+  /**
+   * Add main function call at last, default to false
+   */
+  runnable?: boolean
   /**
    * Enable strict mode, default true
    */
@@ -59,12 +67,12 @@ export default async function main(entry: string, options: Options = {}): Promis
   generate(entry, options, context)
 }
 
-main.__CLICONTEXT__ = {
+main.__CLICONTEXT__ = <Context>{
   stdin: false
 }
 
 export { default as resolve, COMMAND_JSDOC_TAG } from './resolver'
-export { transformCommand, transformOption, COMMAND_OPTIONS_PARAMETER_REGEXP } from './transformer'
+export { transformCommand, transformOption } from './transformer'
 export { default as render } from './render'
 export { default as generate } from './generator'
 export { default as emit, EmitOptions, DEFAULT_EMITOPTIONS } from './emitter'
