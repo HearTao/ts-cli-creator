@@ -45,12 +45,11 @@ export default async function main(): Promise<void> {
             '$0 <param> [...options]', '', 
             yargs => {
                 return yargs
-                    .positional('param', { type: string })
+                    .positional('param', { type: string, demandOption: "true" })
                     .option('foo', { type: string })
             },
             args => {
                 const { _, $0, param, ...options } = args
-                if(undefined === param) throw new TypeError(`Argument param was required`)
                 handler(param, options)
             })
         .help()
@@ -68,7 +67,7 @@ export default async function main(): Promise<void> {
 #### 1. Transform function parameters to commander required positional arguments
 
 ```ts
-function command(foo: string, bar: number) {}
+function command(foo: string, bar?: number) {}
 ```
 
 Transform to:
@@ -77,15 +76,11 @@ Transform to:
 yargs.command(`$0 <foo> <bar>`, ``, 
     yargs => {
         return yargs
-            .positional(`foo`, { type: string })
-            .positional(`bar`, { type: number})
+            .positional(`foo`, { type: string, demandOption: "true" })
+            .positional(`bar`, { type: number })
     },
     args => {
         const { _, $0, foo, bar } = args
-        if(undefined === foo) 
-            throw new TypeError(`Argument "foo" was required`)
-        if(undefined === bar) 
-            throw new TypeError(`Argument "bar" was required`)
         handler(foo, bar)
     }
 )
