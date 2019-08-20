@@ -34,11 +34,11 @@ export default async function cli(args: string[] = process.argv.slice(2)): Promi
             type: "boolean",
             description: "Output full infomations"
           })
-          .option("functionName", {
+          .option("function-name", {
             type: "string",
             description: "Generate Wrapper function name, default to 'cli'"
           })
-          .option("asyncFunction", {
+          .option("async-function", {
             type: "boolean",
             description: "Use async function, default to true"
           })
@@ -54,7 +54,7 @@ export default async function cli(args: string[] = process.argv.slice(2)): Promi
             type: "boolean",
             description: "Enable --help opiotn, default true"
           })
-          .option("helpAlias", {
+          .option("help-alias", {
             type: "boolean",
             description: "Enable -h alias for helper, default true"
           })

@@ -277,12 +277,12 @@ echo function add(a:number,b:number){console.log(a+b)} | ts-cli-creator --no-col
 | --json | Output json data | `boolean` | `false` |
 | --color | Colourful output with write to stdout | `boolean` | `true` |
 | --verbose | Output full infomations | `boolean` | `false` |
-| --functionName | Generate Wrapper function name | `string` | `cli` |
-| --asyncFunction | Use async function | `boolean` | `true` |
+| --function-name | Generate Wrapper function name | `string` | `cli` |
+| --async-function | Use async function | `boolean` | `true` |
 | --runnable | Add main function call at last, default to false | `boolean` | `false` |
 | --strict | enable strict mode | `boolean` | `true` |
 | --helper | global helper options to show helper messages  | `boolean` | `true` |
-| --helperAlias | helper options short for 'h'  | `boolean` | `true` |
+| --helper-alias | helper options short for 'h'  | `boolean` | `true` |
 | --version | global version options, show current version  | `boolean` | `true` |
 
 ## TODOS
