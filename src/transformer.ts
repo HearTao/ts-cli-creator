@@ -178,8 +178,7 @@ export function makeOptionJSDocTagExpression(decl: JSDocableNode): { [key: strin
 // #region comnmand
 
 const COMMAND_POSITIONALS_NAME: string = `positional`
-export const COMMAND_OPTIONS_PARAMETER_REGEXP: RegExp = /^options?$/
-export const COMMAND_POSITIONALS_JSDOCTAG_REGEXP: RegExp = /^(param|arg|argument)/
+const COMMAND_OPTIONS_PARAMETER_REGEXP: RegExp = /^options?$/
 
 export function transformCommand(decl: FunctionDeclaration): TransformResult {
   const [ positionalParams, optionParam ] = getParams(decl)
@@ -249,13 +248,14 @@ export function makeCommandProperties(params: ParameterDeclaration[]): { results
     const name: string = param.getName()
     const [ typeExpr, info ] = makeCommandTypeExpression(param)
     const descExpr = makeCommandDescriptionExpression(param)
+    const demandOptionExpr = makeCommandDemandOptionExpression(param)
 
     acc.results.push({
       name,
       properties: {
         ...typeExpr,
         ...descExpr,
-        demandOption: ts.createStringLiteral(`true`)
+        ...demandOptionExpr
       }
     })
 
@@ -320,6 +320,11 @@ export function makeCommandDescriptionExpression(param: ParameterDeclaration): {
   const trimed = comment.trim()
   const description = trimed.startsWith(`-`) ? trimed.replace(/^-/, '').trim() : trimed
   return { description: ts.createStringLiteral(description) }
+}
+
+export function makeCommandDemandOptionExpression(param: ParameterDeclaration) : { demandOption: ts.Expression } | {} {
+  if(param.isOptional()) return {}
+  return { demandOption: ts.createStringLiteral(`true`) }
 }
 
 function makeModuleRefencesTable(name: string, decl: FunctionDeclaration, ...infoMaps: NodeSourceFileInfoMap[]): NodeSourceFileInfoMap {

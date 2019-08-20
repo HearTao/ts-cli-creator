@@ -8,10 +8,12 @@ import emit, { EmitOptions, Writter, DEFAULT_WRITTER } from './emitter'
 
 export interface Context {
   stdin?: boolean
+  args?: string[]
 }
 
 export interface GenerateOptions {
   output?: string
+  js?: boolean
 }
 
 export type Options =
@@ -34,9 +36,11 @@ export default function generate(entry: string, options: Partial<Options> = {}, 
     help: options.help,
     helpAlias: options.helpAlias,
     version: options.version,
+    runnable: options.runnable
   }
   const out = render(transformed, outputSourceFile, entrySourceFile, renderOptions, context)
-  const result = print(out)
+  const outCode = print(out)
+  const result = options.js ? getTransformedResult(project, outCode) : outCode
 
   const emitOptions = {
     verbose: options.verbose,
@@ -49,6 +53,14 @@ export default function generate(entry: string, options: Partial<Options> = {}, 
   }
   
   emit(outputSourceFile.getFilePath(), result, emitOptions)
+}
+
+export function getTransformedResult(project: Project, sourceCode: string): string {
+  const sourceFile = project.createSourceFile('__OUT__.ts', sourceCode)
+  const output = sourceFile.getEmitOutput()
+  const outputFile = output.getOutputFiles()
+  if(0 === outputFile.length) throw new Error(`No output file found`)
+  return outputFile[0].getText()
 }
 
 export function getInputAndOutputSourceFile(entry: string, project: Project, options: GenerateOptions, stdin: boolean): { outputSourceFile: SourceFile, entrySourceFile: SourceFile } {

@@ -1,9 +1,5 @@
-// import * as vm from 'vm'
-// import * as yargs from 'yargs'
 import { Project, ts, printNode, FunctionDeclaration, ParameterDeclaration, InterfaceDeclaration, PropertySignature } from 'ts-morph'
-import { transformCommand, makeUnsupportsTypeError, parseExprStmt, makeCommandTypeExpression, getJSDocTags, getJSDoc, getJSDocTag, makeCommandDescriptionExpression, makeCommandProperties, getCommandDescription, makeOptionsTypeExpression, makeOptionsDescriptionExpression, makeOptionJSDocTagExpression, DeclarationExportType, assertPositionalAndOptionsNameConflict } from './transformer'
-// import { generateCallableChain } from './render'
-
+import { transformCommand, makeUnsupportsTypeError, parseExprStmt, makeCommandTypeExpression, getJSDocTags, getJSDoc, getJSDocTag, makeCommandDescriptionExpression, makeCommandProperties, getCommandDescription, makeOptionsTypeExpression, makeOptionsDescriptionExpression, makeOptionJSDocTagExpression, DeclarationExportType, assertPositionalAndOptionsNameConflict, makeCommandDemandOptionExpression } from './transformer'
 
 describe(`transformCommand()`, () => {
   describe(`makeCommandTypeExpression()`, () => {
@@ -97,6 +93,21 @@ describe(`transformCommand()`, () => {
       const param = getFunctionParameterDecl(code)
       const actual = makeCommandDescriptionExpression(param)
       expect(actual).toEqual({})
+    })
+  })
+
+  describe(`makeCommandDemandOptionExpression()`, () => {
+    test(`required`, () => {
+      const code = `function(foo) {}`
+      const param = getFunctionParameterDecl(code)
+      const resolved = makeCommandDemandOptionExpression(param)
+      expect(resolved).toEqual({ demandOption: ts.createStringLiteral(`true`) })
+    })
+    test(`required`, () => {
+      const code = `function(foo?) {}`
+      const param = getFunctionParameterDecl(code)
+      const resolved = makeCommandDemandOptionExpression(param)
+      expect(resolved).toEqual({})
     })
   })
 
