@@ -332,9 +332,9 @@ yargs => {
         description: ts.createStringLiteral(''),
         positionals: [],
         options: [
-          ts.createCall(ts.createIdentifier('foo'), undefined, []),
-          ts.createCall(ts.createIdentifier('bar'), undefined, [])
-        ]
+          [``, ts.createCall(ts.createIdentifier('foo'), undefined, [])],
+          [``, ts.createCall(ts.createIdentifier('bar'), undefined, [])]
+        ] as [string, ts.CallExpression][]
       }
       const resolved = print(makeBuilder(result)).trim()
       expect(resolved).toBe(`\
@@ -353,9 +353,9 @@ yargs => {
           [``, ts.createCall(ts.createIdentifier('bar'), undefined, [])]
         ] as [string, ts.CallExpression][],
         options: [
-          ts.createCall(ts.createIdentifier('baz'), undefined, []),
-          ts.createCall(ts.createIdentifier('qux'), undefined, [])
-        ]
+          [``, ts.createCall(ts.createIdentifier('baz'), undefined, [])],
+          [``, ts.createCall(ts.createIdentifier('qux'), undefined, [])]
+        ] as [string, ts.CallExpression][]
       }
       const resolved = print(makeBuilder(result)).trim()
       expect(resolved).toBe(`\
@@ -414,8 +414,8 @@ args => {
         description: ts.createStringLiteral(''),
         positionals: [],
         options: [
-          ts.createCall(ts.createIdentifier(`bar`), undefined, [])
-        ]
+          [``, ts.createCall(ts.createIdentifier(`bar`), undefined, [])]
+        ] as [string, ts.CallExpression][]
       }
       const resolved = print(makeHandler(result)).trim()
       expect(resolved).toBe(`\
@@ -435,8 +435,8 @@ args => {
           [`bar`, ts.createCall(ts.createIdentifier('bar'), undefined, [])]
         ] as [string, ts.CallExpression][],
         options: [
-          ts.createCall(ts.createIdentifier(`baz`), undefined, [])
-        ]
+          [``, ts.createCall(ts.createIdentifier(`baz`), undefined, [])]
+        ] as [string, ts.CallExpression][]
       }
       const resolved = print(makeHandler(result)).trim()
       expect(resolved).toBe(`\
