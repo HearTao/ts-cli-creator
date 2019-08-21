@@ -24,7 +24,7 @@ jobs:
           fetch-depth: 1
       - uses: actions/setup-node@master
       - name: Install Dependencies
-        run: npm install
+        run: npm ci
       - name: Build
         run: npm run build
       - name: Generate Bin File
@@ -32,5 +32,7 @@ jobs:
       - name: Copy Package.json To dist
         run:  cp package.json ./dist
       - name: Publish NPM
+        env:
+          NPM_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: cd ./dist && npm publish --tag master && cd ../
 # npm version `npm view . version`-`git rev-parse --verify --short HEAD`
