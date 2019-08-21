@@ -1,6 +1,11 @@
 name: CI
 
-on: [push]
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+      - master
 
 jobs:
   test:
@@ -14,6 +19,8 @@ jobs:
       run: npm ci
     - name: Run Test
       run: npm test
+    - name: Coverage Report
+      run: npm test --coverage && npx codecov
 
   release:
     needs: test
