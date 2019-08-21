@@ -15,7 +15,9 @@ jobs:
     - name: Run Test
       run: npm test
     - name: Coverage Report
-      run: npm test --coverage && npx codecov
+      run: npm test -- --coverage && npx codecov
+      env:
+        CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
   release:
     needs: test
@@ -43,4 +45,3 @@ jobs:
         run: cd ./dist && npm publish --tag master && cd ../
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
