@@ -29,6 +29,8 @@ jobs:
         run: npm ci
       - name: Build
         run: npm run build
+      - name: Update Version
+        run: npm --no-git-tag-version version `npm view . version`-`git rev-parse --verify --short HEAD`
       - name: Generate Bin File
         run: npx bin-file-gen -y
       - name: Copy Files
@@ -36,12 +38,7 @@ jobs:
           cp package.json ./dist
           cp README.md ./dist
       - name: Publish NPM
-        run: |
-          echo $NODE_AUTH_TOKEN
-          echo $NPM_TOKEN
-          npm whoami
-          cd ./dist && npm publish --tag master && cd ../
+        run: cd ./dist && npm publish --tag master && cd ../
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-# npm version `npm view . version`-`git rev-parse --verify --short HEAD`
