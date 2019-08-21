@@ -32,7 +32,7 @@ jobs:
       - name: Copy Package.json To dist
         run:  cp package.json ./dist
       - name: Publish NPM
-        env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: cd ./dist && npm publish --tag master && cd ../
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 # npm version `npm view . version`-`git rev-parse --verify --short HEAD`
