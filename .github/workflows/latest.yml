@@ -29,10 +29,12 @@ jobs:
         run: npm run build
       - name: Generate Bin File
         run: npx bin-file-gen -y
-      - name: Copy Package.json To dist
-        run:  cp package.json ./dist
+      - name: Copy Files
+        run: cp package.json ./dist
+        run: cp README.md ./dist
       - name: Publish NPM
+        run: echo $NPM_TOKEN
         run: cd ./dist && npm publish --tag master && cd ../
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 # npm version `npm view . version`-`git rev-parse --verify --short HEAD`
