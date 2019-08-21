@@ -29,9 +29,8 @@ jobs:
         run: npm run build
       - name: Generate Bin File
         run: npx bin-file-gen -y
-      - name: Update Version
-        run: npm version `npm view . version`-`git rev-parse --verify --short HEAD` && cp package.json ./dist
+      - name: Copy Package.json To dist
+        run:  cp package.json ./dist
       - name: Publish NPM
-        run: cd ./dist && npm publish && cd ../
-      - name: Git Push
-        run: git push origin master
+        run: cd ./dist && npm publish --tag master && cd ../
+# npm version `npm view . version`-`git rev-parse --verify --short HEAD`
