@@ -6,10 +6,10 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@master
+    - uses: actions/checkout@v1
       with:
         fetch-depth: 1
-    - uses: actions/setup-node@master
+    - uses: actions/setup-node@v1
     - name: Install Dependencies
       run: npm ci
     - name: Run Test
@@ -19,10 +19,12 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@master
+      - uses: actions/checkout@v1
         with:
           fetch-depth: 1
-      - uses: actions/setup-node@master
+      - uses: actions/setup-node@v1
+        with:
+          registry-url: 'https://registry.npmjs.org'
       - name: Install Dependencies
         run: npm ci
       - name: Build
