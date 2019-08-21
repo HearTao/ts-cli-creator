@@ -38,11 +38,11 @@ Will generate:
 import * as yargs from 'yargs'
 import handler from './handler'
 
-export default async function main(): Promise<void> {
+export default function main(args: string[] = process.argv.slice(2)): void {
     yargs
         .strict()
         .command(
-            '$0 <param> [...options]', '', 
+            '$0 <param>', '', 
             yargs => {
                 return yargs
                     .positional('param', { type: string, demandOption: "true" })
@@ -54,7 +54,7 @@ export default async function main(): Promise<void> {
             })
         .help()
         .alias('help', 'h')
-        .argv
+        .parse(args)
 }
 ```
 
@@ -73,7 +73,7 @@ function command(foo: string, bar?: number) {}
 Transform to:
 
 ```ts
-yargs.command(`$0 <foo> <bar>`, ``, 
+.command(`$0 <foo> <bar>`, ``, 
     yargs => {
         return yargs
             .positional(`foo`, { type: string, demandOption: "true" })
@@ -108,7 +108,7 @@ function command() {}
 Transform to:
 
 ```ts
-yargs.command(`$0`, `Description for command`)
+.command(`$0`, `Description for command`)
 ```
 
 
@@ -134,7 +134,7 @@ interface Options {
 Transform to:
 
 ```ts
-yargs.option(`foo`, { type: `string` })
+.option(`foo`, { type: `string` })
 ```
 
 Supports options types:
@@ -255,13 +255,23 @@ Or use ts-node:
 ts-cli-creator ./src/handler.ts --no-color --runnable  -- -h | ts-node -T --skip-project ./cli.ts
 ```
 
-See simple example:
+See the simple example:
 
 ```sh
-echo function add(a:number,b:number){console.log(a+b)} | ts-cli-creator --no-color --js -- 1 2
+echo function add(a:number,b:number){console.log(a+b)} | ts-cli-creator --no-color --js -- 1 2 | node
 
 ## will output 3
 ```
+
+<div align=center>
+
+&nbsp;
+
+![Preview](https://user-images.githubusercontent.com/5752902/63343447-88364900-c380-11e9-9b7d-f810a70d0431.gif)
+
+&nbsp;
+
+</div>
 
 ## Cli Options
 
@@ -273,7 +283,7 @@ echo function add(a:number,b:number){console.log(a+b)} | ts-cli-creator --no-col
 | --color | Colourful output with write to stdout | `boolean` | `true` |
 | --verbose | Output full infomations | `boolean` | `false` |
 | --function-name | Generate Wrapper function name | `string` | `cli` |
-| --async-function | Use async function | `boolean` | `true` |
+| --async-function | Use async function | `boolean` | `false` |
 | --runnable | Add main function call at last, default to false | `boolean` | `false` |
 | --strict | enable strict mode | `boolean` | `true` |
 | --helper | global helper options to show helper messages  | `boolean` | `true` |

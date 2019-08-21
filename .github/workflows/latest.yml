@@ -1,0 +1,47 @@
+name: CI
+
+on: [push,pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v1
+      with:
+        fetch-depth: 1
+    - uses: actions/setup-node@v1
+    - name: Install Dependencies
+      run: npm ci
+    - name: Run Test
+      run: npm test
+    - name: Coverage Report
+      run: npm test -- --coverage && npx codecov
+      env:
+        CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+  release:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-node@v1
+        with:
+          registry-url: 'https://registry.npmjs.org'
+      - name: Install Dependencies
+        run: npm ci
+      - name: Build
+        run: npm run build
+      - name: Update Version
+        run: npm --no-git-tag-version version `npm view . version`-`git rev-parse --verify --short HEAD`
+      - name: Generate Bin File
+        run: npx bin-file-gen -y
+      - name: Copy Files
+        run: |
+          cp package.json ./dist
+          cp README.md ./dist
+      - name: Publish NPM
+        run: cd ./dist && npm publish --tag master && cd ../
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
