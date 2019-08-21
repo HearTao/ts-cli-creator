@@ -38,11 +38,11 @@ Will generate:
 import * as yargs from 'yargs'
 import handler from './handler'
 
-export default async function main(): Promise<void> {
+export default function main(args: string[] = process.argv.slice(2)): void {
     yargs
         .strict()
         .command(
-            '$0 <param> [...options]', '', 
+            '$0 <param>', '', 
             yargs => {
                 return yargs
                     .positional('param', { type: string, demandOption: "true" })
@@ -54,7 +54,7 @@ export default async function main(): Promise<void> {
             })
         .help()
         .alias('help', 'h')
-        .argv
+        .parse(args)
 }
 ```
 
@@ -73,7 +73,7 @@ function command(foo: string, bar?: number) {}
 Transform to:
 
 ```ts
-yargs.command(`$0 <foo> <bar>`, ``, 
+.command(`$0 <foo> <bar>`, ``, 
     yargs => {
         return yargs
             .positional(`foo`, { type: string, demandOption: "true" })
@@ -108,7 +108,7 @@ function command() {}
 Transform to:
 
 ```ts
-yargs.command(`$0`, `Description for command`)
+.command(`$0`, `Description for command`)
 ```
 
 
@@ -134,7 +134,7 @@ interface Options {
 Transform to:
 
 ```ts
-yargs.option(`foo`, { type: `string` })
+.option(`foo`, { type: `string` })
 ```
 
 Supports options types:
@@ -258,7 +258,7 @@ ts-cli-creator ./src/handler.ts --no-color --runnable  -- -h | ts-node -T --skip
 See the simple example:
 
 ```sh
-echo function add(a:number,b:number){console.log(a+b)} | ts-cli-creator --no-color --js -- 1 2
+echo function add(a:number,b:number){console.log(a+b)} | ts-cli-creator --no-color --js -- 1 2 | node
 
 ## will output 3
 ```
